@@ -1,0 +1,49 @@
+# Constant-time scan policy for moxzi-ed25519 (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+ct = ["<curve25519_dalek::edwards::EdwardsPoint>::mul_base", "sha2::sha512::compress512", "<curve25519_dalek::backend::serial::u32::scalar::Scalar29>::mul"]
+
+[roots]
+public_key = { secret = [0], why = "the public key of the secret seed (param 0)" }
+sign = { secret = [0], why = "RFC 8032 signing with the secret seed (param 0); the message (param 2) is public" }
+
+[public]
+verify = "verification: every input is public (variable time by design)"
+
+[[allow]]
+function = "<ed25519_dalek::hazmat::ExpandedSecretKey as core::convert::From<&*>>::from"
+why = "SHA-512 of the 32-byte seed: the block-buffer position byte and the padding it indexes (always 32: a public length)."
+[allow.sites]
+"branch br_if i32.eq(i32.load8_u,C)" = 1
+"branch br_if i64.eqz(…)" = 1
+"branch br_if i64.gt_u(…,C)" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.extend_i32_u(i32.load8_u))" = 1
+"addr-index memory.fill i64.xor(i64.extend_i32_u(i32.load8_u),C)" = 1
+
+[[allow]]
+function = "<curve25519_dalek::scalar::Scalar>::from_hash::<*>"
+why = "SHA-512 finalisation of the nonce and challenge hashes: block-buffer position and padding (functions of the public message length)."
+[allow.sites]
+"branch br_if i32.eq(i32.load8_u,C)" = 1
+"branch br_if i64.eqz(…)" = 1
+"branch br_if i64.gt_u(…,C)" = 1
+"addr-index i32.store8 i64.add(i64.add(P,C),i64.extend_i32_u(i32.load8_u))" = 1
+"addr-index memory.fill i64.xor(i64.extend_i32_u(i32.load8_u),C)" = 1

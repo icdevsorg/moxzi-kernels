@@ -1,0 +1,159 @@
+moxzi-kernels
+Copyright (c) 2026 ICDevs.org
+
+Licensed under either of the Apache License, Version 2.0 (LICENSE-APACHE) or the MIT license
+(LICENSE-MIT), at your option, except where a file or an item below says otherwise.
+
+This repository contains, or its compiled kernels contain, the third-party material listed
+below. Each item keeps its own license; the required attributions are given here.
+
+
+1. MATERIAL IN THIS REPOSITORY'S SOURCE
+=========================================
+
+BLAKE3 reference implementation (Motoko port)
+  kernels/moxzi-hash/src/internal/Blake3Ref.mo is a direct port to Motoko of the official
+  BLAKE3 reference implementation,
+  https://github.com/BLAKE3-team/BLAKE3/blob/master/reference_impl/reference_impl.rs
+  Copyright the BLAKE3 authors (Jack O'Connor, Jean-Philippe Aumasson, Samuel Neves,
+  Zooko Wilcox-O'Hearn). Used under CC0-1.0 (public domain dedication); also available
+  under Apache-2.0.
+
+Ed25519 (RFC 8032) in Motoko, from mo:ic-agent
+  kernels/moxzi-ed25519/src/internal/Ed25519Ref.mo is a verbatim copy of src/Ed25519.mo of
+  mo:ic-agent 0.2.0 (https://github.com/icdevsorg/ic-agent-mo), Copyright ICDevs.org,
+  published under Apache-2.0 and offered here by the same copyright holder under this
+  repository's licenses.
+
+Test vectors (used only by the check crates; never part of a kernel)
+  kernels/moxzi-rsa/check/vectors/wycheproof-rsa_pss_3072_sha256_mgf1_32.json
+  kernels/moxzi-secp256k1/check/vectors/wycheproof-ecdsa-secp256k1-sha256-bitcoin.json
+    Project Wycheproof, https://github.com/C2SP/wycheproof. Copyright Google LLC and the
+    Wycheproof authors. Apache-2.0. The secp256k1 file is reduced to the fields the checks
+    read (key, tcId, msg, sig, result).
+  kernels/moxzi-secp256k1/check/vectors/bip340-test-vectors.csv
+    BIP 340 test vectors, https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+    (BIP 340: BSD-2-Clause).
+  kernels/moxzi-kernel/check/vectors/kernel-family-bitcoin.json
+    A selection from (the file's "_sources" field names each part):
+    - Bitcoin Core test data (src/test/data/key_io_valid.json, key_io_invalid.json,
+      sighash.json), https://github.com/bitcoin/bitcoin, Copyright The Bitcoin Core
+      developers, MIT.
+    - BIP 32 (BSD-2-Clause), BIP 143 (public domain) and BIP 341 (BSD-3-Clause) test vectors,
+      https://github.com/bitcoin/bips.
+
+Specifications implemented (no code copied): FIPS 204 (ML-DSA), FIPS 202 (SHA-3/SHAKE),
+FIPS 180-4, RFC 2104, RFC 6979, RFC 8017, RFC 8032, RFC 9380, SEC 1, BIP 32, BIP 173,
+BIP 340, BIP 341, BIP 350.
+
+The Motoko packages depend on further mops packages (mo:base, mo:core, mo:sha2, mo:bitcoin,
+mo:bls12-381); those are fetched from the mops registry under their own licenses and are not
+part of this repository.
+
+
+2. CODE COMPILED INTO THE KERNELS
+==================================
+
+Each kernel/*.kernel.toml file embeds a compiled WebAssembly module. Besides this
+repository's own code, that module contains compiled code from the Rust crates below (the
+normal dependencies of the kernel crates for the kernel target, resolved from each crate's
+committed Cargo.lock; link-time optimisation keeps only the code a kernel reaches), and from
+the Rust standard library's `core` and `alloc` and `compiler_builtins` (built with
+-Zbuild-std; MIT OR Apache-2.0, compiler_builtins including LLVM compiler-rt code under
+Apache-2.0 WITH LLVM-exception). This repository does not include the dependencies' source;
+cargo fetches it from crates.io when a kernel is built.
+
+Every license below is permissive and compatible with distributing this repository's source
+under MIT OR Apache-2.0 and the compiled kernels with this notice. Where a crate offers a
+choice, the kernels use it under the MIT or Apache-2.0 option.
+
+MIT OR Apache-2.0 (at your option), crate versions as locked:
+  arrayvec 0.7.8, base16ct 0.2.0, block-buffer 0.9.0 / 0.10.4, bls12_381 0.8.0, bs58 0.5.1,
+  cfg-if 1.0.5, const-oid 0.9.6, crypto-bigint 0.5.5, crypto-common 0.1.6 / 0.1.7,
+  der 0.7.10, digest 0.9.0 / 0.10.7, ecdsa 0.16.9, ed25519 2.2.3, elliptic-curve 0.13.8,
+  ff 0.13.1, group 0.13.0, hmac 0.12.1, k256 0.13.4, lazy_static 1.5.1, libc 0.2.191,
+  num-bigint-dig 0.8.6, num-integer 0.1.47, num-iter 0.1.46, num-traits 0.2.19,
+  opaque-debug 0.3.1, p256 0.13.2, pairing 0.23.0, pkcs1 0.7.5, pkcs8 0.10.2,
+  ppv-lite86 0.2.21, primeorder 0.13.6, rand 0.8.8 / 0.10.3, rand_chacha 0.3.1,
+  rand_core 0.6.4 / 0.10.1, rfc6979 0.4.0, ripemd 0.1.3, rsa 0.9.10, sec1 0.7.3,
+  sha2 0.9.9 / 0.10.9, signature 2.2.0, smallvec 1.16.3, spki 0.7.3, typenum 1.20.1,
+  zeroize 1.9.1
+  (most are by the RustCrypto developers; bls12_381, ff, group and pairing by the zkcrypto
+  developers (Sean Bowe, Jack Grigg); bs58 by Wim Looman)
+
+Multi-licensed, used under Apache-2.0 or MIT:
+  blake3 1.5.4 (CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception), Jack O'Connor
+    and the BLAKE3 authors
+  constant_time_eq 0.3.1 (CC0-1.0 OR MIT-0 OR Apache-2.0), Cesar Eduardo Barros
+  zerocopy 0.8.63 (BSD-2-Clause OR Apache-2.0 OR MIT), The Fuchsia Authors
+
+Apache-2.0 only:
+  libcrux-ml-dsa 0.0.11, libcrux-sha3 0.0.11, libcrux-intrinsics 0.0.9,
+  libcrux-platform 0.0.4, libcrux-secrets 0.0.7, libcrux-traits 0.0.9
+    Copyright Cryspen. https://github.com/cryspen/libcrux
+  libsecp256k1-core 0.3.0
+    Copyright Wei Tang and Parity Technologies. https://github.com/paritytech/libsecp256k1
+  (The Apache License 2.0 text is in LICENSE-APACHE. None of these crates ships a NOTICE
+  file.)
+
+MIT only (each requires its copyright notice and the MIT permission notice, whose text is
+in LICENSE-MIT, to accompany copies):
+  bech32 0.11.0      Copyright (c) 2017 Clark Moody (rust-bitcoin)
+  crunchy 0.2.4      Copyright 2017-2023 Eira Fransham
+  generic-array 0.14.7 / 0.14.9   Copyright (c) 2015 Bartlomiej Kaminski
+  libm 0.2.16        Copyright (c) 2018 Jorge Aparicio; portions derived from musl libc,
+                     Copyright (c) 2005-2020 Rich Felker, et al., and its math code,
+                     Copyright (c) 1993,2004 Sun Microsystems, 2003-2011 David Schultz,
+                     2003-2009 Steven G. Kargl, 2003-2009 Bruce D. Evans, 2008 Stephen L.
+                     Moshier, 2017-2018 Arm Limited; and from the CORE-MATH project (MIT)
+  spin 0.9.9         Copyright (c) 2014 Mathijs van de Nes
+
+BSD-2-Clause:
+  arrayref 0.3.9     Copyright (c) 2015 David Roundy
+
+BSD-3-Clause:
+  curve25519-dalek 4.1.3   Copyright (c) 2016-2021 isis agora lovecruft;
+                           Copyright (c) 2016-2021 Henry de Valence
+  ed25519-dalek 2.2.0      Copyright (c) 2017-2019 isis agora lovecruft
+  subtle 2.6.1             Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence;
+                           Copyright (c) 2016-2024 Isis Agora Lovecruft
+
+The BSD licenses above require this notice, the list of conditions and the disclaimer to be
+reproduced with binary distributions:
+
+  Redistribution and use in source and binary forms, with or without modification, are
+  permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice, this list of
+     conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright notice, this list of
+     conditions and the following disclaimer in the documentation and/or other materials
+     provided with the distribution.
+
+  3. (BSD-3-Clause only) Neither the name of the copyright holder nor the names of its
+     contributors may be used to endorse or promote products derived from this software
+     without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+  COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+  TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+3. BUILD AND CHECK TOOLING (not distributed in compiled form)
+==============================================================
+
+The check crates (kernels/*/check, kernels/moxzi-rsa/check/fuel-probe) and the build-time
+dependencies of the kernel crates (build scripts, procedural macros) use further crates from
+crates.io, all under permissive licenses: MIT OR Apache-2.0 for most; Apache-2.0 WITH
+LLVM-exception (wasmtime, cranelift, regalloc2 and related Bytecode Alliance crates, used
+by fuel-probe); Apache-2.0 (the libcrux crates and libcrux-macros); MIT; BSD-2-Clause and
+BSD-3-Clause (the crates of section 2); Zlib (foldhash); Unlicense OR MIT (memchr,
+termcolor); and (MIT OR Apache-2.0) AND Unicode-3.0 (unicode-ident). They are fetched by
+cargo and not included here.

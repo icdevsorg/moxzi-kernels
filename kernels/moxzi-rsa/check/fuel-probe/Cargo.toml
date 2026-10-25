@@ -1,0 +1,23 @@
+# Instruction counts of the PINNED RSA kernel (kernel/moxzi-rsa.kernel.toml), measured as wasmtime
+# fuel (one unit per executed wasm instruction), without PocketIC:
+#   cargo run --release --manifest-path kernels/moxzi-rsa/check/fuel-probe/Cargo.toml
+# It hosts the ABI-1 module itself (memory64, kernel_alloc, kernel_trap) and compares sign's
+# private part (sign minus verifyDigest of its own signature, as kernel-constant-time.test.ts
+# does) across keys whose secrets differ in DER shape, and checks that a key of a non-standard
+# shape (unreduced CRT exponents) is refused. Exit 1 on a finding.
+[package]
+name = "moxzi-rsa-fuel-probe"
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+wasmtime = { version = "=45.0.3", default-features = false, features = ["runtime", "cranelift", "std"] }
+anyhow = "1"
+rsa = { version = "=0.9.10", default-features = false, features = ["u64_digit", "std"] }
+sha2 = { version = "=0.10.9" }
+num-bigint-dig = { version = "0.8", default-features = false, features = ["prime", "i128", "u64_digit"] }
+rand_chacha = "=0.3.1"
+
+[workspace]

@@ -1,0 +1,136 @@
+# Constant-time scan policy for moxzi-p256 (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+ct = ["moxzi_p256_kernel::ops::mul_g", "moxzi_p256_kernel::ops::invert", "p256::arithmetic::field::field_impl::fe_mul", "<p256::arithmetic::scalar::Scalar as core::ops::arith::Mul>::mul", "sha2::sha256::compress256"]
+
+[roots]
+public_key = { secret = [0], why = "k*G for the secret key (param 0)" }
+derive_public_key = { secret = [0], why = "k*G for the secret key (param 0)" }
+sign_prehash = { secret = [0], why = "RFC 6979 ECDSA with the secret key (param 0); the digest (param 2) is public" }
+
+[public]
+convert_public_key = "re-encodes a public key"
+normalize_signature = "a public signature"
+signature_from_der = "a public signature encoding"
+signature_to_der = "a public signature encoding"
+verify_prehash = "verification: key, digest and signature are public (variable time by design)"
+
+[[allow]]
+function = "moxzi_p256_kernel::ops::mul_g"
+why = "decoding the static comb table (tables::COMB, public): each table point goes through FromEncodedPoint and expect(\"corrupt static table\"), whose CtOption test is always Some. The digit selection (conditional_assign over every entry) has no site."
+[allow.sites]
+"branch br_if i32.ne(i32.load8_u,C)" = 4
+
+[[allow]]
+function = "moxzi_p256_kernel::ops::invert"
+why = "after crypto-bigint inv_odd_mod, whose loop has no site in this build: the returned ok flag (gcd == 1, compiled as limb0 == 1 then the rest == 0) feeding assert!, and Scalar::from_repr's range check feeding expect(). For the nonzero k that signing inverts both always hold, so the path never varies."
+[allow.sites]
+"branch br_if i64.ne(i64.xor(…,?),C)" = 1
+"branch br_if i64.ne(…,C)" = 1
+"branch br_if i32.eq(i32.and(black_box(i32.and(…,C)),C),C)" = 1
+
+[[allow]]
+function = "<primeorder::affine::AffinePoint<p256::NistP256> as elliptic_curve::sec1::FromEncodedPoint<p256::NistP256>>::from_encoded_point"
+why = "SEC1 decoding of the static comb-table points (called from mul_g on public table bytes, which reach it through a stack copy and so count as DATA): tag and length checks."
+[allow.sites]
+"branch br_if i32.lt_u(i32.add(i32.load8_u,C),C)" = 1
+"branch br_if i32.eqz(i32.load8_u)" = 1
+"branch br_if i32.eq(i32.and(i32.load8_u,C),C)" = 1
+"branch br_if i32.ne(i32.load8_u,C)" = 1
+
+[[allow]]
+function = "moxzi_p256_kernel::secret"
+why = "NonZeroScalar::from_repr validity of the secret key (in [1, n)) feeding unwrap_or_else(trap): a valid key always takes the same path; an invalid one traps, as documented."
+[allow.sites]
+"branch br_if i32.eq(i32.and(…,C),C)" = 1
+
+[[allow]]
+function = "<hmac::simple::SimpleHmac<*>::finalize_into_reset"
+why = "HMAC-SHA-256 finalisation inside RFC 6979: the SHA-256 block-buffer position byte (BlockBuffer::pos), the padding byte it indexes and the length tests on it. The position is a function of the input lengths (public); it is DATA here only because the buffer bytes beside it are written at computed offsets."
+[allow.sites]
+"branch br_if i64.eq(i64.load8_u,C)" = 2
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 2
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 2
+"addr-index i32.store8 i64.add(i64.add(P,C),i64.load8_u)" = 1
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 2
+"addr-index i32.store8 i64.add(i64.add(i64.add(i64.sub(G,C),C),C),i64.load8_u)" = 1
+
+[[allow]]
+function = "public_key"
+why = "SEC1 encoding of the computed public key (a public output): the tag byte (02/03/04) selects the encoding length through a static table."
+[allow.sites]
+"branch br_if i32.gt_u(i32.load8_u,C)" = 1
+"branch br_if i32.eqz(i32.and(i32.shr_u(C,i32.load8_u),C))" = 1
+"branch br_if i64.eqz(static)" = 1
+"addr-index i64.load i64.add(i64.add(G,C),…)" = 1
+"addr-index memory.copy static" = 1
+
+[[allow]]
+function = "derive_public_key"
+why = "SEC1 encoding of the computed public key (a public output): the tag byte (02/03/04) selects the encoding length through a static table."
+[allow.sites]
+"branch br_if i32.gt_u(i32.load8_u,C)" = 1
+"branch br_if i32.eqz(i32.and(i32.shr_u(C,i32.load8_u),C))" = 1
+"branch br_if i64.eqz(static)" = 1
+"addr-index i64.load i64.add(i64.add(G,C),…)" = 1
+"addr-index memory.copy static" = 1
+
+[[allow]]
+function = "sign_prehash"
+why = "inlined RFC 6979 HMAC-DRBG: SHA-256 block-buffer positions, copy and fill lengths and the stores they index (functions of the public input lengths); generate_k's candidate rejection (k >= n or k == 0 retries, probability ~2^-32 for P-256: a rejected candidate is discarded, as in every RFC 6979 implementation); Signature::from_scalars' r != 0 and s != 0 checks on the public outputs."
+[allow.sites]
+"branch br_if i32.gt_u(i32.load8_u,C)" = 1
+"branch br_if i32.eq(i32.load8_u,C)" = 1
+"branch br_if i64.eqz(…)" = 4
+"branch br_if i32.ne(i32.load8_u,C)" = 2
+"branch br_if i64.eqz(i64.sub(C,i64.and(…,C)))" = 1
+"branch br_if i64.eqz(i64.add(i64.and(…,C),C))" = 1
+"branch br_if i64.eqz(i64.sub(C,i64.or(?,C)))" = 1
+"branch br_if i64.eqz(?)" = 1
+"branch br_if i64.eq(i64.load8_u,C)" = 2
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 2
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 2
+"branch br_if i64.lt_u(i64.load8_u,C)" = 3
+"branch br_if i64.eqz(i64.sub(C,i64.load8_u))" = 3
+"branch br_if i64.eqz(i64.add(i64.load8_u,C))" = 3
+"branch br_if i32.ge_u(i32.load8_u,C)" = 1
+"branch br_if i32.eqz(i32.and(black_box(…),C))" = 1
+"branch br_if i32.ne(i32.and(black_box(i32.and(…,C)),C),C)" = 1
+"branch br_if i32.and(…,C)" = 1
+"branch br_if i32.ne(…,C)" = 2
+"branch br_if i32.and(black_box(i64.eqz(…)),C)" = 1
+"branch br_if i32.eqz(i32.and(…,C))" = 1
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.extend_i32_u(i32.load8_u))" = 8
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),…)" = 2
+"addr-index memory.copy i64.sub(C,i64.extend_i32_u(i32.load8_u))" = 2
+"addr-index memory.copy i64.add(i64.extend_i32_u(i32.load8_u),C)" = 2
+"addr-index memory.copy i64.sub(C,i64.and(…,C))" = 1
+"addr-index memory.copy i64.add(i64.and(…,C),C)" = 1
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.add(i64.and(…,C),C))" = 4
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),?)" = 4
+"addr-index memory.copy i64.sub(C,i64.or(?,C))" = 1
+"addr-index memory.copy ?" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.add(i64.sub(G,C),C),C),i64.load8_u)" = 2
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 2
+"addr-index memory.copy i64.sub(C,i64.load8_u)" = 3
+"addr-index memory.copy i64.add(i64.load8_u,C)" = 3
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 12
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),?)" = 1

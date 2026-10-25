@@ -1,0 +1,106 @@
+# Constant-time scan policy for moxzi-hash (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+# Every input may be secret here (a hash library: keys, seeds, preimages), so every root marks all
+# its buffers secret; only the lengths are public.
+
+ct = ["sha2::sha256::compress256", "sha2::sha512::compress512", "blake3::portable::compress_in_place", "ripemd::c160::compress"]
+
+[roots]
+hmac_sha256 = { secret = [0, 2], why = "HMAC with a secret key (param 0) over a possibly secret message (param 2)" }
+hmac_sha512 = { secret = [0, 2], why = "HMAC with a secret key (param 0) over a possibly secret message (param 2)" }
+blake3_keyed = { secret = [0, 2], why = "keyed BLAKE3: secret key (param 0), possibly secret input (param 2)" }
+blake3_hash = { secret = [0], why = "the input may be a secret" }
+sha256 = { secret = [0], why = "the input may be a secret" }
+sha512 = { secret = [0], why = "the input may be a secret" }
+ripemd160 = { secret = [0], why = "the input may be a secret" }
+
+[public]
+
+[[allow]]
+function = "<blake3::ChunkState>::update"
+why = "BLAKE3 chunk buffering: buf_len and blocks_compressed counters, min(want, input.len()) as a copy length (the select), all functions of the public input length."
+[allow.sites]
+"branch br_if i32.eqz(i32.load8_u)" = 1
+"branch br_if i32.ge_u(i32.load8_u,C)" = 1
+"branch br_if i64.eqz(select(i64.lt_u(P,…)))" = 1
+"branch br_if i32.eqz(…)" = 1
+"branch br_if i64.lt_u(?,C)" = 1
+"branch br_if i64.gt_u(i64.add(?,C),C)" = 1
+"branch br_if i32.ge_u(i32.and(?,C),C)" = 1
+"branch br_if i64.eqz(select(i64.lt_u(?,i64.sub(C,?))))" = 1
+"addr-select select i64.lt_u(P,…)" = 1
+"addr-select select i64.lt_u(?,i64.sub(C,?))" = 1
+"addr-index memory.copy select(i64.lt_u(P,…))" = 1
+"addr-index memory.copy select(i64.lt_u(?,i64.sub(C,?)))" = 1
+
+[[allow]]
+function = "blake3::compress_subtree_wide::<*>"
+why = "BLAKE3 tree recursion: the number of chaining values returned by the recursive call and the subtree split, functions of the public input length."
+[allow.sites]
+"branch br_if i64.ne(…,C)" = 1
+"branch br_if i64.ge_u(i64.add(…,…),C)" = 1
+"branch br_if i32.eqz(…)" = 1
+"branch br_if i64.ne(i64.and(i64.shl(i64.add(…,…),C),C),C)" = 2
+"branch br_if i64.eqz(i64.and(i64.add(…,…),C))" = 1
+"addr-index i64.load i64.add(i64.sub(G,C),i64.and(i64.shl(i64.add(…,…),C),C))" = 4
+
+[[allow]]
+function = "blake3_hash"
+why = "the chaining-value count returned by compress_subtree_wide (a public length)."
+[allow.sites]
+"branch br_if i64.eq(…,C)" = 1
+
+[[allow]]
+function = "blake3_keyed"
+why = "the chaining-value count returned by compress_subtree_wide (a public length)."
+[allow.sites]
+"branch br_if i64.eq(…,C)" = 1
+
+[[allow]]
+function = "hmac_sha256"
+why = "SHA-256 finalisation: block-buffer position byte, the padding it indexes and its length tests (functions of the public key and message lengths)."
+[allow.sites]
+"branch br_if i64.eq(i64.load8_u,C)" = 1
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 1
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 1
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 1
+
+[[allow]]
+function = "hmac_sha512"
+why = "SHA-512 finalisation: block-buffer position and padding (public lengths)."
+[allow.sites]
+"branch br_if i32.eq(i32.load8_u,C)" = 1
+"branch br_if i64.eqz(…)" = 1
+"branch br_if i64.gt_u(…,C)" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.extend_i32_u(i32.load8_u))" = 1
+"addr-index memory.fill i64.xor(i64.extend_i32_u(i32.load8_u),C)" = 1
+
+[[allow]]
+function = "ripemd160"
+why = "RIPEMD-160 finalisation: block-buffer position and padding (public lengths)."
+[allow.sites]
+"branch br_if i64.eq(i64.load8_u,C)" = 1
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 1
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 1
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 1

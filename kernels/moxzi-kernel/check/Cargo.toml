@@ -1,0 +1,51 @@
+# Native and Miri checks of the kernel ABI (not part of any kernel build): the SDK's helpers
+# (../src/lib.rs: bytes, output, text, trap, the allocator) and every exported function of
+# every kernel family, called the way the glue calls them -- payload pointers, result buffers
+# of exactly the declared size, results read back as the glue reads them.
+#   cargo test --release --manifest-path kernels/moxzi-kernel/check/Cargo.toml
+# See scripts/kernel_native_checks.sh for the Miri run and the build configurations.
+[package]
+name = "moxzi-kernel-check"
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+path = "check.rs"
+
+[dependencies]
+# The union of the kernel families' dependencies, at their pinned versions and features
+# (feature unification only adds features some family already uses). The BLS families use
+# sha2 0.9 (as bls12_381 0.8 does), renamed here; build.rs rewrites their `sha2::` paths.
+bs58 = { version = "=0.5.1", default-features = false, features = ["alloc", "check"] }
+bech32 = { version = "=0.11.0", default-features = false, features = ["alloc"] }
+sha2 = { version = "=0.10.9", default-features = false }
+sha2_09 = { package = "sha2", version = "=0.9.9", default-features = false }
+ripemd = { version = "=0.1.3", default-features = false }
+hmac = { version = "=0.12.1", default-features = false }
+blake3 = { version = "=1.5.4", default-features = false }
+k256 = { version = "=0.13.4", default-features = false, features = ["arithmetic", "ecdsa", "schnorr"], optional = true }
+bls12_381 = { version = "=0.8.0", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["fast", "hazmat"] }
+curve25519-dalek = { version = "=4.1.3", default-features = false, features = ["precomputed-tables"] }
+libcrux-ml-dsa = { version = "=0.0.11", default-features = false, features = ["mldsa44"] }
+p256 = { version = "=0.13.2", default-features = false, features = ["arithmetic", "ecdsa", "expose-field"], optional = true }
+ecdsa = { version = "=0.16.9", default-features = false, features = ["signing", "verifying"] }
+rfc6979 = { version = "=0.4.0", default-features = false }
+libsecp256k1-core = { version = "=0.3.0", default-features = false }
+rsa = { version = "=0.9.10", default-features = false, features = ["u64_digit"] }
+
+[features]
+# Two builds. P-256 cannot share one with k256: both implement elliptic-curve's
+# FieldBytesEncoding for U256, which makes the kernels' unannotated
+# `ORDER.encode_field_bytes()` (p256 and secp256k1 ops.rs) ambiguous. The default build has
+# every family but P-256; `--no-default-features --features p256` has P-256 alone.
+default = ["k256"]
+k256 = ["dep:k256"]
+p256 = ["dep:p256"]
+
+[build-dependencies]
+serde_json = "1"
+
+[workspace]

@@ -1,0 +1,23 @@
+# Exclusions shared by every kernel's constant-time scan policy (kernels/ct-scan/allow/*.toml).
+# A function matching one of these globs is not scanned when it is reached from a secret root
+# (a root itself is always scanned). Each needs a reason: these run only on the way to a trap
+# (panic formatting and the trap itself, after the caller's branch to it, which IS scanned) or
+# are the kernel SDK's result/allocation plumbing, which sees lengths and pointers only.
+
+[exclude]
+"core::panicking::*" = "panic path: runs only after the caller decided to trap (that branch is scanned in the caller)"
+"core::fmt::*" = "panic message formatting: reached only from panics"
+"<core::fmt::*" = "panic message formatting: reached only from panics"
+"*as core::fmt::Debug>::fmt" = "Debug formatting: reached only from panic messages"
+"*as core::fmt::Display>::fmt" = "Display formatting: reached only from panic messages"
+"*as core::fmt::LowerHex>::fmt" = "hex formatting: reached only from panic messages"
+"*as core::fmt::Write>::*" = "formatter sinks: reached only from panic messages"
+"core::result::unwrap_failed" = "panic path"
+"core::option::expect_failed" = "panic path"
+"core::option::unwrap_failed" = "panic path"
+"core::slice::index::*fail*" = "slice index panic path"
+"core::slice::copy_from_slice_impl::len_mismatch_fail" = "panic path"
+"core::panicking::panic_bounds_check" = "panic path"
+"__rustc::rust_begin_unwind" = "the panic handler: formats the message and traps"
+"moxzi_kernel::trap" = "the SDK's trap: copies a static message to the host and does not return"
+"moxzi_kernel::fail" = "traps with a static message"

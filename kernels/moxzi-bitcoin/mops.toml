@@ -1,0 +1,51 @@
+[package]
+name = "moxzi-bitcoin"
+version = "0.1.0"
+description = "Bitcoin hashes, addresses, BIP32 public derivation, scripts and transaction signature hashes, with a native moxzi kernel; the Motoko bodies (on mo:bitcoin) run under moc or without the opt-in."
+repository = "https://github.com/icdevsorg/moxzi-kernels"
+license = "MIT OR Apache-2.0"
+files = ["src/**/*.mo", "kernel/*.kernel.toml"]
+
+[dependencies]
+core = "2.6.0"
+sha2 = "0.1.14"
+bitcoin = "0.2.1"
+
+[kernel]
+abi = 1
+file = "kernel/moxzi-bitcoin.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-bitcoin/rust"
+
+[kernel.functions]
+"Hash.sha256d" = { export = "hash_sha256d", args = ["Blob"], result = "Blob", result_bytes = 32 }
+"Hash.hash160" = { export = "hash_hash160", args = ["Blob"], result = "Blob", result_bytes = 20 }
+"Hash.taggedHash" = { export = "hash_tagged", args = ["Text", "Blob"], result = "Blob", result_bytes = 32 }
+"Address.p2pkh" = { export = "address_p2pkh", args = ["Blob", "Text"], result = "?Text" }
+"Address.p2sh" = { export = "address_p2sh", args = ["Blob", "Text"], result = "Text" }
+"Address.p2wpkh" = { export = "address_p2wpkh", args = ["Blob", "Text"], result = "?Text" }
+"Address.p2wsh" = { export = "address_p2wsh", args = ["Blob", "Text"], result = "Text" }
+"Address.taprootOutputKey" = { export = "address_taproot_output_key", args = ["Blob", "Blob"], result = "?Blob" }
+"Address.p2tr" = { export = "address_p2tr", args = ["Blob", "Blob", "Text"], result = "?Text" }
+"Address.toScript" = { export = "address_to_script", args = ["Text", "Text"], result = "?Blob" }
+"Address.fromScript" = { export = "address_from_script", args = ["Blob", "Text"], result = "?Text" }
+"Bip32.parse" = { export = "bip32_parse", args = ["Text"], result = "?Blob" }
+"Bip32.serialize" = { export = "bip32_serialize", args = ["Blob"], result = "?Text" }
+"Bip32.deriveChild" = { export = "bip32_derive_child", args = ["Text", "Nat64"], result = "?Text" }
+"Bip32.derivePath" = { export = "bip32_derive_path", args = ["Text", "Text"], result = "?Text" }
+"Bip32.fingerprint" = { export = "bip32_fingerprint", args = ["Blob"], result = "?Blob" }
+"Bip32.fromPublicKey" = { export = "bip32_from_public_key", args = ["Blob", "Blob", "Text"], result = "?Text" }
+"Script.p2pkh" = { export = "script_p2pkh", args = ["Blob"], result = "?Blob" }
+"Script.p2sh" = { export = "script_p2sh", args = ["Blob"], result = "?Blob" }
+"Script.p2wpkh" = { export = "script_p2wpkh", args = ["Blob"], result = "?Blob" }
+"Script.p2wsh" = { export = "script_p2wsh", args = ["Blob"], result = "?Blob" }
+"Script.p2tr" = { export = "script_p2tr", args = ["Blob"], result = "?Blob" }
+"Script.pushData" = { export = "script_push_data", args = ["Blob"], result = "Blob" }
+"Script.tapLeafHash" = { export = "script_tap_leaf_hash", args = ["Blob", "Nat64"], result = "?Blob" }
+"Script.tapBranchHash" = { export = "script_tap_branch_hash", args = ["Blob", "Blob"], result = "?Blob" }
+"Transaction.isValid" = { export = "tx_is_valid", args = ["Blob"], result = "Bool" }
+"Transaction.stripWitness" = { export = "tx_strip_witness", args = ["Blob"], result = "?Blob" }
+"Transaction.txid" = { export = "tx_txid", args = ["Blob"], result = "?Blob" }
+"Transaction.wtxid" = { export = "tx_wtxid", args = ["Blob"], result = "?Blob" }
+"Transaction.signatureHashLegacy" = { export = "tx_sighash_legacy", args = ["Blob", "Nat64", "Blob", "Nat64"], result = "?Blob" }
+"Transaction.signatureHashSegwitV0" = { export = "tx_sighash_segwit_v0", args = ["Blob", "Nat64", "Blob", "Nat64", "Nat64"], result = "?Blob" }
+"Transaction.signatureHashTaproot" = { export = "tx_sighash_taproot", args = ["Blob", "Nat64", "Blob", "Nat64", "Blob", "Blob", "Nat64"], result = "?Blob" }

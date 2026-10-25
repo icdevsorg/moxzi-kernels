@@ -1,0 +1,21 @@
+# Native differential checks for ../rust/src/ops.rs and its static tables (not part of the
+# kernel build):
+#   cargo test --release --manifest-path kernels/moxzi-p256/check/Cargo.toml
+# MOXZI_WRITE_TABLES=1 regenerates ../rust/src/tables.rs from p256's own arithmetic.
+[package]
+name = "moxzi-p256-check"
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+path = "check.rs"
+
+[dependencies]
+p256 = { version = "=0.13.2", default-features = false, features = ["arithmetic", "ecdsa", "expose-field"] }
+ecdsa = { version = "=0.16.9", default-features = false, features = ["signing", "verifying"] }
+rfc6979 = { version = "=0.4.0", default-features = false }
+sha2 = { version = "=0.10.9", default-features = false }
+
+[workspace]

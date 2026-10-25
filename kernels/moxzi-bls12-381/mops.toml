@@ -1,0 +1,38 @@
+[package]
+name = "moxzi-bls12-381"
+version = "0.1.0"
+description = "BLS12-381 for Motoko: Ethereum BLS signatures (verify, proof of possession, aggregate), G1/G2 arithmetic and MSM, RFC 9380 hash-to-curve and pairing checks, with a native moxzi kernel; the Motoko bodies (mo:bls12-381) run under moc or without the opt-in."
+repository = "https://github.com/icdevsorg/moxzi-kernels"
+license = "MIT OR Apache-2.0"
+files = ["src/**/*.mo", "kernel/*.kernel.toml"]
+
+[dependencies]
+core = "2.6.0"
+sha2 = "0.1.14"
+bls12-381 = "0.2.0"
+
+[kernel]
+abi = 1
+file = "kernel/moxzi-bls12-381.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-bls12-381/rust"
+
+[kernel.functions]
+"Bls12381.hashToG1" = { export = "bls_hash_to_g1", args = ["Blob", "Blob"], result = "Blob", result_bytes = 48 }
+"Bls12381.hashToG2" = { export = "bls_hash_to_g2", args = ["Blob", "Blob"], result = "Blob", result_bytes = 96 }
+"Bls12381.verifyEthereum" = { export = "bls_eth_verify", args = ["Blob", "Blob", "Blob"], result = "Bool" }
+"Bls12381.verifyEthereumProof" = { export = "bls_eth_pop_verify", args = ["Blob", "Blob"], result = "Bool" }
+"Bls12381.aggregateVerifyEthereum" = { export = "bls_eth_aggregate_verify", args = ["Blob", "Blob", "Blob"], result = "Bool" }
+"Bls12381.fastAggregateVerifyEthereum" = { export = "bls_eth_fast_aggregate_verify", args = ["Blob", "Blob", "Blob"], result = "Bool" }
+"Bls12381.g1Add" = { export = "bls_g1_add", args = ["Blob", "Blob"], result = "?Blob" }
+"Bls12381.g1Aggregate" = { export = "bls_g1_aggregate", args = ["Blob"], result = "?Blob" }
+"Bls12381.g1Mul" = { export = "bls_g1_mul", args = ["Blob", "Blob"], result = "?Blob" }
+"Bls12381.g1Msm" = { export = "bls_g1_msm", args = ["Blob", "Blob"], result = "?Blob" }
+"Bls12381.g2Add" = { export = "bls_g2_add", args = ["Blob", "Blob"], result = "?Blob" }
+"Bls12381.g2Aggregate" = { export = "bls_g2_aggregate", args = ["Blob"], result = "?Blob" }
+"Bls12381.g2Mul" = { export = "bls_g2_mul", args = ["Blob", "Blob"], result = "?Blob" }
+"Bls12381.g2Msm" = { export = "bls_g2_msm", args = ["Blob", "Blob"], result = "?Blob" }
+"Bls12381.validateG1" = { export = "bls_g1_validate", args = ["Blob"], result = "Bool" }
+"Bls12381.validateG2" = { export = "bls_g2_validate", args = ["Blob"], result = "Bool" }
+"Bls12381.mapToG1" = { export = "bls_map_to_g1", args = ["Blob"], result = "?Blob" }
+"Bls12381.mapToG2" = { export = "bls_map_to_g2", args = ["Blob"], result = "?Blob" }
+"Bls12381.pairingCheck" = { export = "bls_pairing_check", args = ["Blob"], result = "Bool" }

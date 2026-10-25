@@ -1,0 +1,61 @@
+# Constant-time scan policy for moxzi-bitcoin (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+# No export takes secret input: hashes of public data, addresses, BIP32 PUBLIC derivation (xpub;
+# CKDpub tweaks a public key with a public chain code), scripts and transaction hashes.
+
+[roots]
+
+[public]
+address_from_script = "public data (addresses, xpubs, scripts, transactions)"
+address_p2pkh = "public data (addresses, xpubs, scripts, transactions)"
+address_p2sh = "public data (addresses, xpubs, scripts, transactions)"
+address_p2tr = "public data (addresses, xpubs, scripts, transactions)"
+address_p2wpkh = "public data (addresses, xpubs, scripts, transactions)"
+address_p2wsh = "public data (addresses, xpubs, scripts, transactions)"
+address_taproot_output_key = "public data (addresses, xpubs, scripts, transactions)"
+address_to_script = "public data (addresses, xpubs, scripts, transactions)"
+bip32_derive_child = "public data (addresses, xpubs, scripts, transactions)"
+bip32_derive_path = "public data (addresses, xpubs, scripts, transactions)"
+bip32_fingerprint = "public data (addresses, xpubs, scripts, transactions)"
+bip32_from_public_key = "public data (addresses, xpubs, scripts, transactions)"
+bip32_parse = "public data (addresses, xpubs, scripts, transactions)"
+bip32_serialize = "public data (addresses, xpubs, scripts, transactions)"
+hash_hash160 = "public data (addresses, xpubs, scripts, transactions)"
+hash_sha256d = "public data (addresses, xpubs, scripts, transactions)"
+hash_tagged = "public data (addresses, xpubs, scripts, transactions)"
+script_p2pkh = "public data (addresses, xpubs, scripts, transactions)"
+script_p2sh = "public data (addresses, xpubs, scripts, transactions)"
+script_p2tr = "public data (addresses, xpubs, scripts, transactions)"
+script_p2wpkh = "public data (addresses, xpubs, scripts, transactions)"
+script_p2wsh = "public data (addresses, xpubs, scripts, transactions)"
+script_push_data = "public data (addresses, xpubs, scripts, transactions)"
+script_tap_branch_hash = "public data (addresses, xpubs, scripts, transactions)"
+script_tap_leaf_hash = "public data (addresses, xpubs, scripts, transactions)"
+tx_is_valid = "public data (addresses, xpubs, scripts, transactions)"
+tx_sighash_legacy = "public data (addresses, xpubs, scripts, transactions)"
+tx_sighash_segwit_v0 = "public data (addresses, xpubs, scripts, transactions)"
+tx_sighash_taproot = "public data (addresses, xpubs, scripts, transactions)"
+tx_strip_witness = "public data (addresses, xpubs, scripts, transactions)"
+tx_txid = "public data (addresses, xpubs, scripts, transactions)"
+tx_wtxid = "public data (addresses, xpubs, scripts, transactions)"
+
+

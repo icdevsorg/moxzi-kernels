@@ -1,0 +1,276 @@
+# Constant-time scan policy for moxzi-secp256k1 (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+# FINDING (upstream, FIXED here 2026-10-24): libsecp256k1-core 0.3.0's Jacobian::add_ge, the
+# constant-time addition the comb used, is not branch-free: its Rust port writes
+# normalizes_to_zero as `z0 == 0 || z1 == 0x3ffffff`, `degenerate` as `m.normalizes_to_zero() &&
+# rr.normalizes_to_zero()` and Field::cmov as `if flag { a } else { b }` (C libsecp256k1 uses
+# bitwise operators and masks); the pin before this one (sha256 a87bb6be...) had 9 branches and 7 address selects
+# there, allowed as negligible (degenerate additions, a.infinity only at the first addition).
+# ops::add_ge now computes the same formula with masks (fe_cmov, fe_is_zero) and is in `ct`
+# with NO allow entry: k*G (ops::mul_g and everything it reaches) has no site left from it.
+
+ct = ["moxzi_secp256k1_kernel::ops::mul_g", "moxzi_secp256k1_kernel::ops::add_ge", "<libsecp256k1_core::field::Field>::mul_in_place", "<libsecp256k1_core::field::Field>::sqr_in_place", "<k256::arithmetic::mul::LookupTable>::select", "<k256::arithmetic::scalar::Scalar>::mul", "sha2::sha256::compress256"]
+
+[roots]
+public_key = { secret = [0], why = "k*G for the secret key (param 0)" }
+derive_public_key = { secret = [0], why = "k*G for the secret key (param 0)" }
+sign_prehash = { secret = [0], why = "RFC 6979 ECDSA with the secret key (param 0); the digest (param 2) is public" }
+schnorr_sign = { secret = [0, 4], why = "BIP340 with the secret key (param 0) and the auxiliary randomness (param 4); the message (param 2) is public" }
+tweak_x_only_secret_key = { secret = [0], why = "the secret key (param 0) plus a public tweak" }
+base_multiply = { secret = [0], why = "k*G: the scalar (param 0) may be a secret key" }
+point_multiply = { secret = [2], why = "k256 constant-time Q*s: the scalar (param 2) may be secret (ECDH); Q is public" }
+tweak_public_key = { secret = [2], why = "t*G + P: the tweak (param 2) is public in BIP32/BIP341 but may be secret elsewhere; P is public" }
+tweak_x_only_public_key = { secret = [2], why = "t*G + lift_x(x): as tweak_public_key" }
+
+[public]
+compress_public_key = "re-encodes a public key"
+convert_public_key = "re-encodes a public key"
+decompress_public_key = "re-encodes a public key"
+x_only_public_key = "re-encodes a public key"
+point_add = "public points (variable time by design)"
+normalize_signature = "a public signature"
+signature_from_der = "a public signature encoding"
+signature_to_der = "a public signature encoding"
+verify_prehash = "verification: every input is public (variable time by design)"
+schnorr_verify = "verification: every input is public (variable time by design)"
+
+[[allow]]
+function = "<libsecp256k1_core::group::Jacobian>::double_var_in_place"
+why = "`if a.infinity` on the accumulator: in mul_g it is never at infinity when doubled (every comb entry carries an offset point and the first row is not doubled), so the branch never varies."
+[allow.sites]
+"branch br_if i32.load8_u" = 1
+
+[[allow]]
+function = "<libsecp256k1_core::field::Field>::eq_var"
+why = "variable-time field comparison, reached from the public-point parsing of point_multiply / tweak_public_key (public inputs)."
+[allow.sites]
+"branch br_if i32.eq(i32.and(i32.add(…,C),C),C)" = 1
+"branch br_if i32.eqz(i32.and(i32.add(…,C),C))" = 1
+"branch br_if i32.or(i32.and(…,C),…)" = 1
+
+[[allow]]
+function = "<libsecp256k1_core::field::Field>::set_b32"
+why = "the x < p range check of a public coordinate (public-point parsing)."
+[allow.sites]
+"branch br_if i32.ne(i32.or(…,i32.shl(i32.load8_u,C)),C)" = 1
+"branch br_if i32.ne(i32.and(i32.and(…,…),…),C)" = 1
+"branch br_if i32.gt_u(…,C)" = 1
+
+[[allow]]
+function = "<libsecp256k1_core::group::Affine>::is_valid_var"
+why = "on-curve check of a public point."
+[allow.sites]
+"branch br_if i32.load8_u" = 1
+
+[[allow]]
+function = "<libsecp256k1_core::group::Affine>::set_xo_var"
+why = "decompression of a public point (square root existence and parity), variable time by design."
+[allow.sites]
+"branch br_if i32.or(i32.and(i32.or(i32.or(…,…),…),C),i32.add(i32.shr_u(…,C),…))" = 1
+"branch br_if i32.ne(i32.and(i32.and(i32.and(…,…),…),…),C)" = 1
+"branch br_if i32.eqz(i32.or(i32.shr_u(…,C),…))" = 1
+"branch br_if i32.eqz(i32.and(i32.xor(param,?),C))" = 1
+
+[[allow]]
+function = "moxzi_secp256k1_kernel::ops::parse_public"
+why = "SEC1 parsing of a public key (tag, length)."
+[allow.sites]
+"branch br_if i32.ne(i32.and(i32.load8_u,C),C)" = 1
+"branch br_if i32.eqz(call:<…>::set_b32)" = 3
+"branch br_if call:<…>::set_xo_var" = 1
+"branch br_if i32.ne(i32.load8_u,C)" = 1
+"branch br_if call:<…>::is_valid_var" = 1
+
+[[allow]]
+function = "moxzi_secp256k1_kernel::ops::tagged"
+why = "BIP340 tagged-hash SHA-256 block-buffer positions (functions of the public tag and message lengths)."
+[allow.sites]
+"branch br_if i64.lt_u(i64.load8_u,C)" = 1
+"branch br_if i64.eqz(i64.sub(C,i64.load8_u))" = 1
+"branch br_if i64.eqz(i64.add(i64.load8_u,C))" = 1
+"addr-index memory.copy i64.sub(C,i64.load8_u)" = 1
+"addr-index memory.copy i64.add(i64.load8_u,C)" = 1
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 4
+
+[[allow]]
+function = "moxzi_secp256k1_kernel::secret"
+why = "NonZeroScalar::from_repr validity of the secret key feeding unwrap_or_else(trap): a valid key always takes the same path."
+[allow.sites]
+"branch br_if i32.eq(i32.and(black_box(…),C),C)" = 1
+
+[[allow]]
+function = "<hmac::simple::SimpleHmac<*>::finalize_into_reset"
+why = "HMAC-SHA-256 finalisation inside RFC 6979: the SHA-256 block-buffer position byte (BlockBuffer::pos), the padding byte it indexes and the length tests on it. The position is a function of the input lengths (public); it is DATA here only because the buffer bytes beside it are written at computed offsets."
+[allow.sites]
+"branch br_if i64.eq(i64.load8_u,C)" = 2
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 2
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 2
+"addr-index i32.store8 i64.add(i64.add(P,C),i64.load8_u)" = 1
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 2
+"addr-index i32.store8 i64.add(i64.add(i64.add(i64.sub(G,C),C),C),i64.load8_u)" = 1
+
+[[allow]]
+function = "sha2::sha256::compress256"
+why = "the number of blocks to compress (a public length)."
+[allow.sites]
+"branch br_if i64.ne(i64.add(?,C),i64.add(param,i64.shl(param,C)))" = 1
+
+[[allow]]
+function = "public_key"
+why = "affine(): None at infinity (never for a valid key: it traps otherwise)."
+[allow.sites]
+"branch br_if call:moxzi_secp256k1_kernel::ops::mul_g" = 1
+"branch br_if i32.ne(call:<…>::set_gej,C)" = 1
+
+[[allow]]
+function = "derive_public_key"
+why = "affine(): None at infinity (never for a valid key: it traps otherwise)."
+[allow.sites]
+"branch br_if call:moxzi_secp256k1_kernel::ops::mul_g" = 1
+"branch br_if i32.ne(call:<…>::set_gej,C)" = 1
+
+[[allow]]
+function = "base_multiply"
+why = "Scalar::from_repr validity of the scalar feeding trap, and the result at infinity (k = 0), which is the public null result."
+[allow.sites]
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 1
+"branch br_if call:moxzi_secp256k1_kernel::ops::mul_g" = 1
+"branch br_if i32.eq(call:<…>::set_gej,C)" = 1
+
+[[allow]]
+function = "tweak_x_only_secret_key"
+why = "affine(): None at infinity (never for a valid key); k256 Scalar negation (crypto-bigint 0.5.5 Uint::neg_mod): its masked x == 0 case is compiled into a branch on the scalar being zero (the RUSTSEC-2026-0387 pattern: a CtChoice with no optimisation barrier). Every scalar negated here is nonzero (a NonZeroScalar, a nonce rejected if zero, or s of a signature that from_scalars would reject if zero), so the branch never varies. The sum d + t == 0 returns null (a public result)."
+[allow.sites]
+"branch br_if call:moxzi_secp256k1_kernel::ops::mul_g" = 1
+"branch br_if i32.eq(call:<…>::set_gej,C)" = 1
+"branch br_if i64.eq(…,C)" = 1
+"branch br_if i32.and(…,C)" = 1
+
+[[allow]]
+function = "tweak_public_key"
+why = "public-point parsing, the tweak's from_repr validity (trap), and a result at infinity (the public null result: the infinity flag of ops::add_ge's sum, i32.ne(…,C), and of mul_g's)."
+[allow.sites]
+"branch br_if i32.eq(…,C)" = 1
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 1
+"branch br_if i32.ne(…,C)" = 1
+"branch br_if i32.eq(call:<…>::set_gej,C)" = 1
+
+[[allow]]
+function = "tweak_x_only_public_key"
+why = "lift_x of the public x (set_b32, set_xo_var results), the tweak's from_repr validity (trap), and a result at infinity (the public null result: the infinity flag of ops::add_ge's sum, i32.ne(…,C), and of mul_g's)."
+[allow.sites]
+"branch br_if i32.eqz(call:<…>::set_b32)" = 1
+"branch br_if i32.eqz(call:<…>::set_xo_var)" = 1
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 1
+"branch br_if i32.ne(…,C)" = 1
+"branch br_if i32.eq(call:<…>::set_gej,C)" = 1
+
+[[allow]]
+function = "point_multiply"
+why = "public-point parsing, the scalar's from_repr validity (trap), the identity result (null, public), and the SEC1 encoding of the public output (tag byte -> length). k256's multiplication itself (Radix16Decomposition, LookupTable::select, add, double) has no site."
+[allow.sites]
+"branch br_if i32.eq(…,C)" = 1
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 1
+"branch br_if i32.ne(i32.and(…,C),C)" = 1
+"branch br_if i32.and(black_box(…),C)" = 1
+"branch br_if i32.gt_u(i32.load8_u,C)" = 1
+"branch br_if i32.eqz(i32.and(i32.shr_u(C,i32.load8_u),C))" = 1
+"branch br_if i64.eqz(static)" = 1
+"addr-index i64.load i64.add(i64.add(G,C),…)" = 1
+"addr-index memory.copy static" = 1
+
+[[allow]]
+function = "sign_prehash"
+why = "inlined RFC 6979 HMAC-DRBG: SHA-256 block-buffer positions, copy and fill lengths and the stores they index (functions of the public input lengths); generate_k's candidate rejection (k >= n or k == 0, probability ~2^-128 for secp256k1); the inlined inv_odd_mod's final ok check and from_repr range check (always true for nonzero k: the loop itself has no site); affine() of k*G (never infinity); k256 Scalar negation (crypto-bigint 0.5.5 Uint::neg_mod): its masked x == 0 case is compiled into a branch on the scalar being zero (the RUSTSEC-2026-0387 pattern: a CtChoice with no optimisation barrier). Every scalar negated here is nonzero (a NonZeroScalar, a nonce rejected if zero, or s of a signature that from_scalars would reject if zero), so the branch never varies. Signature::from_scalars' r, s != 0 checks on the public outputs."
+[allow.sites]
+"branch br_if i32.gt_u(i32.load8_u,C)" = 1
+"branch br_if i32.eq(i32.load8_u,C)" = 2
+"branch br_if i64.eqz(…)" = 4
+"branch br_if i32.ne(i32.load8_u,C)" = 2
+"branch br_if i64.eqz(i64.sub(C,i64.and(…,C)))" = 1
+"branch br_if i64.eqz(i64.add(i64.and(…,C),C))" = 1
+"branch br_if i64.eqz(i64.sub(C,i64.or(?,C)))" = 1
+"branch br_if i64.eqz(?)" = 1
+"branch br_if i64.eq(i64.load8_u,C)" = 2
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 2
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 2
+"branch br_if i64.lt_u(i64.load8_u,C)" = 3
+"branch br_if i64.eqz(i64.sub(C,i64.load8_u))" = 3
+"branch br_if i64.eqz(i64.add(i64.load8_u,C))" = 3
+"branch br_if i32.ge_u(i32.load8_u,C)" = 1
+"branch br_if i32.eqz(i32.and(black_box(…),C))" = 1
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 4
+"branch br_if i32.and(black_box(i64.eqz(…)),C)" = 1
+"branch br_if i64.ne(i64.xor(…,?),C)" = 1
+"branch br_if i64.ne(…,C)" = 1
+"branch br_if i32.load8_u" = 1
+"branch br_if i64.eq(i64.or(…,i64.load),C)" = 1
+"branch br_if i32.and(black_box(…),C)" = 1
+"branch br_if i32.eqz(i32.and(black_box(i64.eqz(…)),C))" = 1
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.extend_i32_u(i32.load8_u))" = 8
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),…)" = 2
+"addr-index memory.copy i64.sub(C,i64.extend_i32_u(i32.load8_u))" = 2
+"addr-index memory.copy i64.add(i64.extend_i32_u(i32.load8_u),C)" = 2
+"addr-index memory.copy i64.sub(C,i64.and(…,C))" = 1
+"addr-index memory.copy i64.add(i64.and(…,C),C)" = 1
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.add(i64.and(…,C),C))" = 4
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),?)" = 4
+"addr-index memory.copy i64.sub(C,i64.or(?,C))" = 1
+"addr-index memory.copy ?" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.add(i64.sub(G,C),C),C),i64.load8_u)" = 2
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 2
+"addr-index memory.copy i64.sub(C,i64.load8_u)" = 3
+"addr-index memory.copy i64.add(i64.load8_u,C)" = 3
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 12
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),?)" = 1
+
+[[allow]]
+function = "schnorr_sign"
+why = "BIP340 tagged hashes: SHA-256 buffer positions and copy lengths (functions of the public message length); affine() of d*G and k*G (never infinity for valid keys; k == 0 returns the documented failure); k256 Scalar negation (crypto-bigint 0.5.5 Uint::neg_mod): its masked x == 0 case is compiled into a branch on the scalar being zero (the RUSTSEC-2026-0387 pattern: a CtChoice with no optimisation barrier). Every scalar negated here is nonzero (a NonZeroScalar, a nonce rejected if zero, or s of a signature that from_scalars would reject if zero), so the branch never varies."
+[allow.sites]
+"branch br_if call:moxzi_secp256k1_kernel::ops::mul_g" = 1
+"branch br_if i32.eq(call:<…>::set_gej,C)" = 1
+"branch br_if i64.eq(…,C)" = 2
+"branch br_if i64.lt_u(i64.load8_u,C)" = 5
+"branch br_if i64.eqz(i64.sub(C,i64.load8_u))" = 5
+"branch br_if i64.eqz(i64.add(i64.load8_u,C))" = 5
+"branch br_if i64.eq(i64.load8_u,C)" = 3
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 3
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 3
+"branch br_if i64.lt_u(P,i64.sub(C,…))" = 2
+"branch br_if i32.eqz(i32.and(i32.load8_u,C))" = 2
+"branch br_if i64.eqz(i64.sub(C,…))" = 2
+"branch br_if i64.eqz(i64.shr_u(?,C))" = 2
+"branch br_if i64.eqz(i64.and(?,C))" = 2
+"branch br_if i32.and(black_box(i64.eqz(…)),C)" = 1
+"branch br_if i32.load8_u" = 1
+"branch br_if i32.eq(i32.load8_u,C)" = 1
+"addr-index memory.copy i64.sub(C,i64.load8_u)" = 5
+"addr-index memory.copy i64.add(i64.load8_u,C)" = 5
+"addr-index i64.store i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 8
+"addr-index i32.store8 i64.add(i64.add(i64.add(i64.sub(G,C),C),C),i64.load8_u)" = 3
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 3
+"addr-index i64.store i64.add(i64.add(i64.add(i64.sub(G,C),C),C),i64.load8_u)" = 4
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 64
+"addr-index memory.copy i64.sub(C,…)" = 2
+"addr-index memory.copy i64.add(i64.add(i64.sub(G,C),C),…)" = 2
+"addr-index memory.copy i64.and(?,C)" = 2

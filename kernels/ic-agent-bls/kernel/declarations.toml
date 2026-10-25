@@ -1,0 +1,12 @@
+# The declarations of this kernel, copied from the `[kernel]` section of mo:ic-agent's
+# mops.toml (https://mops.one/ic-agent). The Motoko side of this kernel -- `Bls12381.verify`,
+# whose Motoko body is the fallback -- ships in that package, together with
+# kernel/ic-agent-bls.kernel.toml (the pinned file next to this one). The native ABI checks
+# (kernels/moxzi-kernel/check) read the functions below to call the export as the glue does.
+[kernel]
+abi = 1
+file = "kernel/ic-agent-bls.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/ic-agent-bls"
+
+[kernel.functions]
+"Bls12381.verify" = { export = "bls_verify", args = ["Blob", "Blob", "Blob", "Blob"], result = "Bool" }

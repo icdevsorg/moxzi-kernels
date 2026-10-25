@@ -1,0 +1,24 @@
+[package]
+name = "moxzi-bech32"
+version = "0.1.0"
+description = "Bech32/Bech32m (BIP173/BIP350), bit regrouping and segwit addresses, with a native moxzi kernel; the Motoko bodies (mo:bitcoin) run under moc or without the opt-in."
+repository = "https://github.com/icdevsorg/moxzi-kernels"
+license = "MIT OR Apache-2.0"
+files = ["src/**/*.mo", "kernel/*.kernel.toml"]
+
+[dependencies]
+core = "2.6.0"
+sha2 = "0.1.14"
+bitcoin = "0.2.1"
+
+[kernel]
+abi = 1
+file = "kernel/moxzi-bech32.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-bech32/rust"
+
+[kernel.functions]
+"Bech32.encode" = { export = "bech32_encode", args = ["Text", "Blob", "Bool"], result = "?Text" }
+"Bech32.decodePacked" = { export = "bech32_decode", args = ["Text"], result = "?Blob" }
+"Bech32.convertBits" = { export = "bech32_convert_bits", args = ["Blob", "Nat64", "Nat64", "Bool"], result = "?Blob" }
+"Segwit.encode" = { export = "segwit_encode", args = ["Text", "Nat64", "Blob"], result = "?Text" }
+"Segwit.decodePacked" = { export = "segwit_decode", args = ["Text"], result = "?Blob" }

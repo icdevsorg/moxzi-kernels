@@ -1,0 +1,23 @@
+[package]
+name = "ic-agent-bls-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+# The kernel SDK: scratch allocator (multi_miller_loop's G2Prepared needs `alloc`) and a panic
+# handler that traps with the panic's text.
+moxzi-kernel = { path = "../moxzi-kernel" }
+# Upstream zkcrypto crate, unmodified. `experimental` provides hash_to_curve (RFC 9380); `alloc`
+# provides G2Prepared and multi_miller_loop (one final exponentiation for the two pairings).
+bls12_381 = { version = "=0.8.0", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+sha2 = { version = "=0.9.9", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

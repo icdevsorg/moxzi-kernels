@@ -1,0 +1,27 @@
+[package]
+name = "moxzi-hash"
+version = "0.1.0"
+description = "SHA-256, SHA-512, HMAC, RIPEMD-160 and BLAKE3, with a native moxzi kernel; the Motoko bodies run under moc or without the opt-in."
+repository = "https://github.com/icdevsorg/moxzi-kernels"
+license = "MIT OR Apache-2.0"
+files = ["src/**/*.mo", "kernel/*.kernel.toml"]
+
+[dependencies]
+base = "0.16.0"
+core = "2.6.0"
+sha2 = "0.1.14"
+bitcoin = "0.2.1"
+
+[kernel]
+abi = 1
+file = "kernel/moxzi-hash.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-hash/rust"
+
+[kernel.functions]
+"Sha256.digest" = { export = "sha256", args = ["Blob"], result = "Blob", result_bytes = 32 }
+"Sha512.digest" = { export = "sha512", args = ["Blob"], result = "Blob", result_bytes = 64 }
+"Hmac.sha256" = { export = "hmac_sha256", args = ["Blob", "Blob"], result = "Blob", result_bytes = 32 }
+"Hmac.sha512" = { export = "hmac_sha512", args = ["Blob", "Blob"], result = "Blob", result_bytes = 64 }
+"Ripemd160.digest" = { export = "ripemd160", args = ["Blob"], result = "Blob", result_bytes = 20 }
+"Blake3.digest" = { export = "blake3_hash", args = ["Blob"], result = "Blob", result_bytes = 32 }
+"Blake3.keyedHash" = { export = "blake3_keyed", args = ["Blob", "Blob"], result = "Blob", result_bytes = 32 }

@@ -1,0 +1,107 @@
+# Constant-time scan policy for moxzi-bls12-381 (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+ct = ["<bls12_381::g1::G1Projective>::add", "<bls12_381::g1::G1Projective>::double", "<bls12_381::g2::G2Projective>::add", "<bls12_381::g2::G2Projective>::double", "<bls12_381::g2::G2Projective as subtle::ConditionallySelectable>::conditional_select", "<bls12_381::fp::Fp>::mul"]
+
+[roots]
+bls_g1_mul = { secret = [2], why = "P*s: the scalar (param 2) may be a secret key (signing is H(m)*sk); the point is public" }
+bls_g2_mul = { secret = [2], why = "P*s: the scalar (param 2) may be a secret key (public keys are g2*sk)" }
+
+[public]
+bls_eth_aggregate_verify = "verification"
+bls_eth_fast_aggregate_verify = "verification"
+bls_eth_pop_verify = "verification"
+bls_eth_verify = "verification"
+bls_g1_add = "public points"
+bls_g1_aggregate = "public points"
+bls_g2_add = "public points"
+bls_g2_aggregate = "public points"
+bls_g1_msm = "documented variable time in the scalars (verification use; see lib.rs)"
+bls_g2_msm = "documented variable time in the scalars (verification use; see lib.rs)"
+bls_g1_validate = "a public point"
+bls_g2_validate = "a public point"
+bls_map_to_g1 = "a public field element"
+bls_map_to_g2 = "a public field element"
+bls_hash_to_g1 = "a public message and DST"
+bls_hash_to_g2 = "a public message and DST"
+bls_pairing_check = "public points"
+
+[[allow]]
+function = "moxzi_bls12_381_kernel::g1"
+why = "decoding the public point (param 0, reached through a stack copy): the identity encoding (0xc0 then 47 zero bytes) compared byte by byte, the flag bits, and from_compressed's is_some."
+[allow.sites]
+"branch br_if i32.ne(i32.load8_u,C)" = 1
+"branch br_if i32.load8_u" = 46
+"branch br_if i32.eqz(i32.load8_u)" = 1
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 1
+
+[[allow]]
+function = "moxzi_bls12_381_kernel::g2"
+why = "decoding the public point: the identity encoding (0xc0 then 95 zero bytes) compared byte by byte, the flag bits, and from_compressed's is_some."
+[allow.sites]
+"branch br_if i32.ne(i32.load8_u,C)" = 1
+"branch br_if i32.load8_u" = 94
+"branch br_if i32.eqz(i32.load8_u)" = 1
+"branch br_if i32.ne(i32.and(black_box(…),C),C)" = 1
+
+[[allow]]
+function = "moxzi_bls12_381_kernel::scalar"
+why = "Scalar::from_bytes validity (s < r) feeding the null result: a valid scalar always takes the same path."
+[allow.sites]
+"branch br_if i32.ne(i32.and(black_box(i32.and(…,C)),C),C)" = 1
+
+[[allow]]
+function = "bls_g1_mul"
+why = "the bit iterator of bls12_381's multiply (FlattenCompat over the scalar bytes and 0..8): Option and range bookkeeping, 256 iterations whatever the scalar; the bit itself goes through black_box into conditional_select (no site)."
+[allow.sites]
+"branch br_if i64.eqz(?)" = 2
+"branch br_if i32.lt_s(i32.load,i32.load)" = 2
+"branch br_if i64.eq(i64.add(i64.sub(G,C),C),?)" = 1
+"branch br_if i32.ge_s(i32.load,i32.load)" = 1
+"branch br_if i32.and(call:<…>::iter_try_fold::<…>,C)" = 1
+"branch br_if i32.eqz(…)" = 1
+"branch br_if i32.eqz(i32.and(?,C))" = 1
+
+[[allow]]
+function = "bls_g2_mul"
+why = "as bls_g1_mul: the bit iterator's Option and range bookkeeping."
+[allow.sites]
+"branch br_if i64.eqz(?)" = 2
+"branch br_if i32.lt_s(i32.load,i32.load)" = 2
+"branch br_if i64.eq(i64.add(i64.sub(G,C),C),?)" = 1
+"branch br_if i32.ge_s(i32.load,i32.load)" = 1
+"branch br_if i32.and(call:<…>::iter_try_fold::<…>,C)" = 1
+"branch br_if i32.eqz(…)" = 1
+"branch br_if i32.eqz(i32.and(?,C))" = 1
+
+[[allow]]
+function = "<core::iter::adapters::flatten::FlattenCompat<*G1Projective>::multiply*"
+why = "FlattenCompat::next / iter_try_fold of the bit iterator: front/back Option tests and the range counters, all public (the bit value is not branched on)."
+[allow.sites]
+"branch br_if i64.eqz(i64.load)" = 6
+"branch br_if i32.lt_s(i32.load,i32.load)" = 2
+"branch br_if i64.eq(i64.load,i64.load)" = 1
+"branch br_if i32.eqz(i64.eqz(i64.load))" = 1
+"branch br_if i32.ge_s(i32.load,i32.load)" = 1
+"branch br_if i32.ge_s(i32.load,?)" = 2
+"branch br_if i64.ne(i64.add(?,C),i64.load)" = 1
+"branch br_if i64.eqz(?)" = 1
+"branch br_if i64.eqz(i64.add(?,C))" = 1

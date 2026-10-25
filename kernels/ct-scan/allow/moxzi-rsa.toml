@@ -1,0 +1,119 @@
+# Constant-time scan policy for moxzi-rsa (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+# The constant-time part of signing is rsasp1_ct (out of line since 2026-10-24, with Modulus::sub
+# and reduce_once inlined into it) and the mont.rs functions it calls, listed in `ct` with NO
+# allow entry: any site there fails. What else runs on the secret key is accepted as a whole
+# below and is variable time by design: PKCS#8/PKCS#1 DER parsing of the key (branches on tags
+# and lengths: the key's encoding shape), crt()'s shape checks and the copy lengths of dp, dq and
+# qInv (their DER-minimal byte lengths: whether a top byte is zero), and the post-check
+# s < n, s^e mod n == m (branch-free comparisons; pow_public over the public e). BigUint
+# (num-bigint-dig) sees only the public n and e (key(): the 3072-bit and RsaPublicKey checks).
+# FINDING (accepted, minor): those DER-minimal lengths of dp, dq, qInv reach copy lengths and
+# branches, so a key whose CRT values have a zero top byte runs a few instructions differently; a
+# fixed-width encoding of the key would remove it.
+# FIXED 2026-10-24 (found in review): keys of other shapes (primes not exactly 1536 bits, CRT values
+# >= 2^1536) were signed by a variable-time BigUint fallback (rsasp1 / pow_mod_prime: modpow and
+# division on the secret primes, 78 sites, and num-bigint-dig's division helpers); sign now
+# refuses them ("key shape not supported"), and the fallback is deleted.
+
+ct = ["<moxzi_rsa_kernel::mont::Modulus<48>>::pow_secret", "<moxzi_rsa_kernel::mont::Modulus<48>>::mul", "moxzi_rsa_kernel::rsasp1_ct", "<moxzi_rsa_kernel::mont::Modulus<48>>::to_mont_wide", "<moxzi_rsa_kernel::mont::Modulus<48>>::r2", "sha2::sha256::compress256"]
+
+[roots]
+rsa_pss_sign = { secret = [0], why = "RSASSA-PSS signing with the PKCS#8 private key (param 0); digest and salt (params 2, 4) are public (the salt is recoverable from the signature)" }
+
+[public]
+rsa_pss_verify = "verification: n, e, message and signature are public"
+rsa_pss_verify_digest = "verification: n, e, digest and signature are public"
+
+[exclude]
+"alloc::alloc::handle_alloc_error" = "allocation failure: traps"
+"alloc::raw_vec::handle_error" = "allocation failure: traps"
+"alloc::raw_vec::capacity_overflow" = "allocation failure: traps"
+"__rustc::__rust_alloc_error_handler" = "allocation failure: traps"
+"__rustc::__rdl_alloc_error_handler" = "allocation failure: traps"
+
+[[allow]]
+function = "<moxzi_rsa_kernel::mont::Modulus<96>>::pow_public"
+why = "square-and-multiply over the bits of the PUBLIC exponent e (public by definition, though read here from the private key's DER): the post-signing check s^e mod n == m. Since 2026-10-24 it first skips e's leading zero bytes (mont::significant, inlined here): the word-at-a-time and byte-at-a-time zero scans branch and index on e's bytes and length, which are public."
+[allow.sites]
+"branch br_if i64.eqz(i64.load32_u)" = 1
+"branch br_if i64.gt_s(i64.add(…,…),C)" = 1
+"branch br_if i64.lt_s(i64.add(i64.shr_u(…,C),?),C)" = 1
+"branch br_if i64.lt_u(param,C)" = 1
+"branch br_if i64.ne(i64.load,C)" = 1
+"branch br_if i64.ne(i64.add(?,C),C)" = 1
+"branch br_if i64.gt_u(i64.shl(?,C),param)" = 1
+"branch br_if i64.eq(param,?)" = 1
+"branch br_if i32.load8_u" = 1
+"branch br_if i64.ne(i64.sub(param,?),i64.add(?,C))" = 1
+"branch br_if i64.gt_u(?,i64.sub(param,?))" = 1
+"branch br_if i64.eq(i64.add(?,?),param)" = 1
+"addr-index i32.load8_u i64.add(i64.add(param,?),?)" = 1
+"addr-index i32.load8_u ?" = 1
+"branch br_if i32.eqz(i32.and(…,C))" = 1
+"branch br_if i32.and(…,C)" = 1
+"branch br_if i64.ne(i64.add(?,C),i64.add(param,param))" = 1
+
+[[allow]]
+function = "moxzi_rsa_kernel::mgf1_xor"
+why = "MGF1 chunking of the public-length DB (lengths and counters)."
+[allow.sites]
+"branch br_if i64.eq(i64.load8_u,C)" = 1
+"branch br_if i64.eqz(i64.xor(i64.load8_u,C))" = 1
+"branch br_if i64.gt_u(i64.xor(i64.load8_u,C),C)" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.load8_u)" = 1
+"addr-index memory.fill i64.xor(i64.load8_u,C)" = 1
+
+[[allow]]
+function = "<rsa::key::RsaPublicKey>::new"
+why = "the crate's checks of the public n and e."
+any = 49
+
+[[allow]]
+function = "rsa_pss_sign"
+why = "variable time by design outside rsasp1_ct (see the note above): DER parsing of the key, BigUint conversion of the public n and e, crt()'s shape checks (the UNSUPPORTED_KEY trap) and the DER-minimal copy lengths of dp/dq/qInv (the accepted minor finding), EMSA-PSS encoding of the public digest and salt, and the post-check's trap (s < n and s^e mod n == m, computed without early exits)."
+any = 242
+
+[[allow]]
+function = "*num_bigint_dig::*"
+why = "num-bigint-dig (variable time): on the public n and e only (key()'s from_bytes_be, bits, to_bytes_be and the crate's RsaPublicKey checks). Since 2026-10-24 no secret number is a BigUint (was 1420 sites with the fallback and the BigUint p, q, dp, dq, qInv)."
+any = 97
+
+[[allow]]
+function = "*smallvec::SmallVec<*"
+why = "BigUint digit storage (num-bigint-dig's SmallVec) of the public n and e: lengths."
+any = 63
+
+[[allow]]
+function = "*der::*"
+why = "PKCS#8/PKCS#1 DER parsing of the private key: tags and lengths (encoding shape)."
+any = 250
+
+[[allow]]
+function = "<const_oid::ObjectIdentifier>::from_bytes"
+why = "the algorithm OID (public constant)."
+any = 18
+
+[[allow]]
+function = "*alloc::raw_vec::*"
+why = "Vec growth (lengths)."
+any = 15

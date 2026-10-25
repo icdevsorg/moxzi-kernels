@@ -1,0 +1,24 @@
+[package]
+name = "moxzi-secp256k1-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+# RustCrypto, unmodified. No `std`; no `precomputed-tables` (a lazily built static table).
+k256 = { version = "=0.13.4", default-features = false, features = ["arithmetic", "ecdsa", "schnorr"] }
+# The RFC 6979 nonce as k256's signer derives it (the version k256 0.13.4 resolves to).
+rfc6979 = { version = "=0.4.0", default-features = false }
+# Parity's pure-Rust port of libsecp256k1, unmodified, for the point arithmetic (src/ops.rs):
+# its 10x26-bit field multiplies with native u64 products on wasm64.
+libsecp256k1-core = { version = "=0.3.0", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

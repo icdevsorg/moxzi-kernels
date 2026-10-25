@@ -1,0 +1,22 @@
+[package]
+name = "moxzi-ed25519"
+version = "0.1.0"
+description = "Ed25519 (RFC 8032) keys, signing and strict verification, with a native moxzi kernel; the Motoko bodies run under moc or without the opt-in."
+repository = "https://github.com/icdevsorg/moxzi-kernels"
+license = "MIT OR Apache-2.0"
+files = ["src/**/*.mo", "kernel/*.kernel.toml"]
+
+[dependencies]
+base = "0.16.0"
+core = "2.6.0"
+sha2 = "0.1.14"
+
+[kernel]
+abi = 1
+file = "kernel/moxzi-ed25519.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-ed25519/rust"
+
+[kernel.functions]
+"Ed25519.publicKey" = { export = "public_key", args = ["Blob"], result = "Blob", result_bytes = 32 }
+"Ed25519.sign" = { export = "sign", args = ["Blob", "Blob"], result = "Blob", result_bytes = 64 }
+"Ed25519.verify" = { export = "verify", args = ["Blob", "Blob", "Blob"], result = "Bool" }

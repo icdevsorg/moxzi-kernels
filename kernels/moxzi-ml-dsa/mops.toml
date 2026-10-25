@@ -1,0 +1,21 @@
+[package]
+name = "moxzi-ml-dsa"
+version = "0.1.0"
+description = "ML-DSA-44 (FIPS 204) key generation, signing and verification, with a native moxzi kernel; the Motoko bodies (a FIPS 204 port) run under moc or without the opt-in."
+repository = "https://github.com/icdevsorg/moxzi-kernels"
+license = "MIT OR Apache-2.0"
+files = ["src/**/*.mo", "kernel/*.kernel.toml"]
+
+[dependencies]
+core = "2.6.0"
+
+[kernel]
+abi = 1
+file = "kernel/moxzi-ml-dsa.kernel.toml"
+source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-ml-dsa/rust"
+
+[kernel.functions]
+"MlDsa44.publicKey" = { export = "mldsa44_public_key", args = ["Blob"], result = "Blob", result_bytes = 1312 }
+"MlDsa44.sign" = { export = "mldsa44_sign", args = ["Blob", "Blob", "Blob"], result = "Blob", result_bytes = 2420 }
+"MlDsa44.signHedged" = { export = "mldsa44_sign_hedged", args = ["Blob", "Blob", "Blob", "Blob"], result = "Blob", result_bytes = 2420 }
+"MlDsa44.verify" = { export = "mldsa44_verify", args = ["Blob", "Blob", "Blob", "Blob"], result = "Bool" }

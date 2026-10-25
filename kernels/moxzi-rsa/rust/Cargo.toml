@@ -1,0 +1,26 @@
+[package]
+name = "moxzi-rsa-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+# RustCrypto RSA without std, PEM or OS randomness: alloc only. Verification uses the crate's
+# public-key checks, with RSAVP1 (src/mont.rs) and EMSA-PSS-VERIFY (src/lib.rs, the crate's
+# steps) written out. Signing uses the crate's PKCS#8/PKCS#1 decoders and its BigUint, with
+# EMSA-PSS-ENCODE and RSASP1 written out in src/lib.rs: the crate's own RsaPrivateKey cannot be
+# linked, because its constructor reaches prime recovery, whose integer square root uses f64
+# instructions, which ABI 1 kernels may not contain (and its private-key trait names a type the
+# crate does not export, so the hazmat functions cannot take another key type).
+rsa = { version = "=0.9.10", default-features = false, features = ["u64_digit"] }
+sha2 = { version = "=0.10.9", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

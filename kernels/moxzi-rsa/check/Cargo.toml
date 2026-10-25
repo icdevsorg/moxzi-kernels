@@ -1,0 +1,30 @@
+# Native differential checks for ../rust/src/mont.rs (the Montgomery arithmetic) and the
+# kernel's sign/verify exports in ../rust/src/lib.rs (not part of the kernel build):
+#   cargo test --release --manifest-path kernels/moxzi-rsa/check/Cargo.toml
+# and under Miri (fewer cases, every edge case kept), see scripts/kernel_native_checks.sh.
+# MOXZI_WRITE_KEYS=1 regenerates the test keys in keys/ (deterministic, from fixed seeds).
+[package]
+name = "moxzi-rsa-check"
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+path = "check.rs"
+
+[dependencies]
+# The kernel's own dependencies (its rewritten lib.rs is compiled into this crate), with std
+# for the reference code; "u64_digit" as in the kernel.
+rsa = { version = "=0.9.10", default-features = false, features = ["u64_digit", "std"] }
+sha2 = { version = "=0.10.9", default-features = false }
+# The independent reference for the modular arithmetic (num-bigint, not rsa's num-bigint-dig).
+num-bigint = { version = "=0.4.6", default-features = false, features = ["std"] }
+# Test-key generation (MOXZI_WRITE_KEYS=1) and the rsa crate's randomized PSS signing.
+num-bigint-dig = { version = "0.8", default-features = false, features = ["prime", "i128", "u64_digit"] }
+rand_chacha = "=0.3.1"
+
+[build-dependencies]
+serde_json = "1"
+
+[workspace]

@@ -1,0 +1,21 @@
+[package]
+name = "moxzi-bls12-381-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+# Upstream zkcrypto crate, unmodified. `experimental` provides hash_to_curve (RFC 9380);
+# `alloc` provides multi_miller_loop (the allocator is moxzi-kernel's scratch).
+bls12_381 = { version = "=0.8.0", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+sha2 = { version = "=0.9.9", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

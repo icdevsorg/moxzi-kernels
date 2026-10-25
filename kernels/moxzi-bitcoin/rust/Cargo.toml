@@ -1,0 +1,26 @@
+[package]
+name = "moxzi-bitcoin-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+# Pure Rust, no std, no C: the `bitcoin` crate is not used because its curve operations come
+# from libsecp256k1 (C, through secp256k1-sys).
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+sha2 = { version = "=0.10.9", default-features = false }
+ripemd = { version = "=0.1.3", default-features = false }
+hmac = { version = "=0.12.1", default-features = false }
+# secp256k1 group arithmetic only (no ECDSA/Schnorr, no precomputed tables, no RNG).
+k256 = { version = "=0.13.4", default-features = false, features = ["arithmetic"] }
+bs58 = { version = "=0.5.1", default-features = false, features = ["alloc", "check"] }
+bech32 = { version = "=0.11.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

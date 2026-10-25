@@ -1,0 +1,25 @@
+[package]
+name = "moxzi-p256-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+# RustCrypto, unmodified. `ecdsa` brings RFC 6979 signing and verification; `expose-field` the
+# FieldElement that src/ops.rs verifies with; no `std`.
+p256 = { version = "=0.13.2", default-features = false, features = ["arithmetic", "ecdsa", "expose-field"] }
+# The versions p256 itself resolves to, named directly for the RFC 6979 nonce (rfc6979, as
+# ecdsa's hazmat calls it) and its HMAC digest; src/ops.rs signs with the same steps.
+ecdsa = { version = "=0.16.9", default-features = false, features = ["signing", "verifying"] }
+rfc6979 = { version = "=0.4.0", default-features = false }
+sha2 = { version = "=0.10.9", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

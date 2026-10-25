@@ -1,0 +1,23 @@
+[package]
+name = "moxzi-ml-dsa-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+# Cryspen libcrux ML-DSA (FIPS 204 final), ML-DSA-44 only, portable code, no std, no heap. Keys
+# come from a 32-byte seed and the signing randomness is an argument (all zeros for the
+# deterministic variant). Chosen by measurement over RustCrypto ml-dsa 0.1.1 (the first kernel)
+# and fips204 0.4.6: all three give byte-identical keys and signatures; libcrux takes about a
+# sixth / a half of their instructions. Its own dependencies are pinned exactly by the crate.
+libcrux-ml-dsa = { version = "=0.0.11", default-features = false, features = ["mldsa44"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

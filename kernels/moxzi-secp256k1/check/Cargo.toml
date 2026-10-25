@@ -1,0 +1,25 @@
+# Native differential checks for ../rust/src/ops.rs and its static tables (not part of the
+# kernel build). Run both profiles -- the debug one keeps libsecp256k1-core's field magnitude
+# assertions:
+#   cargo test --release --manifest-path kernels/moxzi-secp256k1/check/Cargo.toml
+#   cargo test --manifest-path kernels/moxzi-secp256k1/check/Cargo.toml
+# MOXZI_WRITE_TABLES=1 regenerates ../rust/src/tables.rs from k256's arithmetic.
+[package]
+name = "moxzi-secp256k1-check"
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+path = "check.rs"
+
+[dependencies]
+k256 = { version = "=0.13.4", default-features = false, features = ["arithmetic", "ecdsa", "schnorr"] }
+rfc6979 = { version = "=0.4.0", default-features = false }
+libsecp256k1-core = { version = "=0.3.0", default-features = false }
+
+[profile.dev]
+opt-level = 1
+
+[workspace]

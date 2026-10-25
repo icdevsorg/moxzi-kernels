@@ -1,0 +1,132 @@
+# Constant-time scan policy for moxzi-ml-dsa (kernels/ct-scan/scan.py; gate scripts/kernel_ct_scan_gate.sh).
+#
+# How the scanned function list is chosen: the [roots] are the exports that take secret input,
+# with the wasm parameter indices of their secret buffers (a pointer parameter; its length is
+# public). The scan covers every root and every function the roots reach by direct calls,
+# minus the [exclude] globs here and in ../common.toml (panic and formatting paths), so
+# a function that a rebuild stops inlining is scanned automatically. The secret arithmetic is
+# mostly inlined into the exports, so the export bodies are scanned like any other function;
+# `ct` lists the constant-time core that must stay out-of-line, scanned, and allow-listed only
+# site by site. Every other export is in [public] with the reason it sees no secret.
+#
+# What a site is: a branch (br_if/if/br_table), an address select, a select-chosen pointer
+# passed to a callee that dereferences it, or a DATA-indexed access, whose condition/index is
+# computed from DATA (anything loaded, returned by a call, or derived from a secret parameter).
+# DATA is "may be secret": each [[allow]] entry says why its sites are public or accepted.
+# `sites` pins every site of the function by kind, op and condition text, with exact counts;
+# `any` (only for variable-time library code accepted as a whole) pins the function's total.
+# A new site, a changed count, or an entry that no longer matches fails the gate.
+# After a kernel rebuild: run `python3 -I kernels/ct-scan/scan.py <kernel.toml> --list`,
+# review every changed site, then update the counts (`--suggest` prints fresh entries).
+
+# ML-DSA (FIPS 204) branches legitimately on values that are public or discarded: rejection
+# sampling of A (public, from rho), of s1/s2 (RejBoundedPoly: a rejected nibble is discarded), and
+# the signing loop's norm and hint-count checks, whose failure discards the candidate. What must
+# not branch on secrets is the arithmetic (NTT, Montgomery reduction, decompose), which has no site
+# outside the entries below (the NTT and SIMD-unit functions are scanned and clean).
+
+ct = ["libcrux_ml_dsa::ml_dsa_generic::instantiations::portable::ml_dsa_44::sign", "libcrux_ml_dsa::ml_dsa_generic::instantiations::portable::ml_dsa_44::generate_key_pair", "libcrux_sha3::generic_keccak::portable::keccak1::<136, 31>"]
+
+[roots]
+mldsa44_public_key = { secret = [0], why = "KeyGen_internal from the secret seed xi (param 0)" }
+mldsa44_sign = { secret = [0], why = "signing with keys derived from the secret seed (param 0); message and context public" }
+mldsa44_sign_hedged = { secret = [0, 6], why = "as mldsa44_sign, with the secret randomness rnd (param 6)" }
+
+[public]
+mldsa44_verify = "verification: every input is public"
+
+[[allow]]
+function = "libcrux_ml_dsa::ml_dsa_generic::instantiations::portable::ml_dsa_44::generate_key_pair"
+why = "RejBoundedPoly for s1, s2 (eta = 2): each SHAKE256 nibble is accepted if < 15 (64 unrolled nibble tests; a rejected nibble is discarded, FIPS 204 Alg. 15), and SHAKE256 absorb bookkeeping (lengths)."
+[allow.sites]
+"branch br_if i64.eqz(call:<…>::absorb_full)" = 2
+"branch br_if i64.lt_u(call:<…>::absorb_full,C)" = 1
+"branch br_if i32.eqz(…)" = 2
+"branch br_if i32.eq(i32.and(i32.load8_u,C),C)" = 32
+"branch br_if i32.eq(i32.shr_u(i32.load8_u,C),C)" = 32
+"addr-index memory.copy call:<…>::absorb_full" = 1
+
+[[allow]]
+function = "libcrux_ml_dsa::ml_dsa_generic::instantiations::portable::ml_dsa_44::sign"
+why = "the rejection loop of Sign_internal (FIPS 204 Alg. 7): infinity-norm checks of z and r0 (|x| computed branch-free, then compared; the early exit leaks only which coefficient of a REJECTED candidate failed, as in the reference implementation) and the hint-count check; SampleInBall (Alg. 29) indexed by bytes of c~, which is public in the signature; the hint encoding of the output signature (h is public); SHAKE256 absorb/squeeze bookkeeping (lengths)."
+[allow.sites]
+"branch br_if i64.eqz(call:<…>::absorb_full)" = 12
+"branch br_if i64.lt_u(call:<…>::absorb_full,C)" = 4
+"branch br_if i32.eqz(…)" = 14
+"branch br_if i64.eq(call:<…>::absorb_full,C)" = 2
+"branch br_if i64.ge_u(P,call:<…>::absorb_full)" = 1
+"branch br_if i64.ge_u(?,i64.load8_u)" = 1
+"branch br_if i64.lt_u(?,i64.load8_u)" = 1
+"branch br_if i32.gt_s(i32.sub(i32.load,i32.shl(…,C)),C)" = 84
+"branch br_if i32.and(i32.or(?,?),C)" = 12
+"branch br_if i64.gt_u(…,C)" = 1
+"branch br_if i32.ne(i32.load,C)" = 8
+"addr-index memory.copy call:<…>::absorb_full" = 5
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),i64.load)" = 2
+"addr-index i32.load i64.add(i64.add(i64.sub(G,C),C),i64.shl(i64.load8_u,C))" = 2
+"addr-index i32.store i64.add(i64.add(i64.sub(G,C),C),i64.shl(i64.load8_u,C))" = 2
+
+[[allow]]
+function = "<libcrux_ml_dsa::samplex4::portable::PortableSampler as *>::matrix_flat::<*>"
+why = "RejNTTPoly for the matrix A (FIPS 204 Alg. 14): A is expanded from the PUBLIC seed rho."
+[allow.sites]
+"branch br_if i32.ge_u(i32.or(…,i32.load8_u),C)" = 4
+"branch br_if i32.gt_u(i32.or(…,i32.load8_u),C)" = 60
+
+[[allow]]
+function = "<libcrux_sha3::generic_keccak::xof::KeccakXofState<*>>::absorb_full"
+why = "SHAKE absorb: buffered-length bookkeeping and block counts (functions of public input lengths)."
+[allow.sites]
+"branch br_if i64.eqz(i64.load)" = 1
+"branch br_if i64.lt_u(P,i64.sub(C,i64.load))" = 1
+"branch br_if i64.ge_u(i64.load,C)" = 1
+"branch br_if i64.eqz(i64.sub(C,i64.load))" = 1
+"branch br_if i64.ne(i64.load,C)" = 1
+"branch br_if i64.lt_u(i64.sub(P,?),C)" = 1
+"branch br_if i64.gt_u(i64.add(i64.mul(?,C),?),C)" = 16
+"branch br_if i64.gt_u(i64.add(i64.add(i64.mul(?,C),?),C),P)" = 16
+"branch br_if i64.le_u(i64.add(i64.add(i64.mul(?,C),?),C),P)" = 1
+"branch br_if i64.ne(i64.add(?,C),i64.div_u(i64.sub(P,?),C))" = 1
+"addr-index memory.copy i64.sub(C,i64.load)" = 1
+"addr-index i64.load i64.add(P,i64.add(i64.add(i64.mul(?,C),?),C))" = 16
+"addr-index i64.load i64.add(P,i64.add(i64.mul(?,C),?))" = 1
+
+[[allow]]
+function = "<libcrux_sha3::portable::incremental::Shake256Xof as *>::absorb_final"
+why = "SHAKE absorb_final: buffered length and padding position (public lengths)."
+[allow.sites]
+"branch br_if i64.ne(call:<…>::absorb_full,C)" = 1
+"branch br_if i64.ge_u(P,call:<…>::absorb_full)" = 1
+"branch br_if i32.eqz(…)" = 2
+"branch br_if i64.eqz(call:<…>::absorb_full)" = 1
+"branch br_if i64.ge_u(?,C)" = 1
+"branch br_if i64.eqz(?)" = 1
+"branch br_if i64.eq(?,C)" = 1
+"addr-index memory.copy call:<…>::absorb_full" = 1
+"addr-index memory.copy ?" = 1
+"addr-index i32.store8 i64.add(i64.add(i64.sub(G,C),C),?)" = 1
+
+[[allow]]
+function = "<libcrux_sha3::portable::incremental::Shake256Xof as *>::squeeze"
+why = "SHAKE squeeze: output length and rate bookkeeping, min() of lengths as a copy length (public)."
+[allow.sites]
+"branch br_if i64.gt_u(i64.load,C)" = 1
+"branch br_if i64.eqz(…)" = 1
+"branch br_if i64.le_u(P,i64.sub(C,i64.load))" = 1
+"branch br_if i32.eqz(i32.load8_u)" = 1
+"branch br_if i64.lt_u(i64.sub(P,?),C)" = 1
+"branch br_if i64.le_u(i64.add(?,C),P)" = 16
+"branch br_if i64.eqz(i64.sub(P,?))" = 1
+"addr-select select i64.lt_u(i64.sub(C,i64.load),P)" = 1
+"addr-index memory.copy select(i64.lt_u(i64.sub(C,i64.load),P))" = 1
+"addr-index i64.store i64.add(P,?)" = 1
+"addr-index i64.store i64.add(P,i64.add(?,C))" = 15
+"addr-index memory.copy i64.sub(P,?)" = 1
+
+[[allow]]
+function = "moxzi_ml_dsa_kernel::sign_with"
+why = "the Result of sign (rejection-loop bound reached: negligible probability, traps) and the Option/length plumbing of rnd and ctx (public lengths)."
+[allow.sites]
+"branch br_if i32.eqz(i32.load)" = 1
+"branch br_if i64.ne(i64.load,C)" = 1
+"branch br_if i32.load8_u" = 1

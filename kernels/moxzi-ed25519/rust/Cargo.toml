@@ -1,0 +1,28 @@
+[package]
+name = "moxzi-ed25519-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+moxzi-kernel = { path = "../../moxzi-kernel" }
+# dalek, unmodified. `fast` = curve25519-dalek's precomputed basepoint tables (static data);
+# `hazmat` = the ExpandedSecretKey / raw_sign that SigningKey::sign is made of (ops::sign).
+ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["fast", "hazmat"] }
+curve25519-dalek = { version = "=4.1.3", default-features = false, features = ["precomputed-tables"] }
+sha2 = { version = "=0.10.9", default-features = false }
+
+# curve25519-dalek's documented backend override (see scripts/build-kernel.sh): its 32-bit field
+# (u32 limbs, u64 products) instead of the 64-bit one it picks for wasm64, whose u128 products
+# have no wasm instruction and become __multi3 calls. Same crate, same results.
+[package.metadata.moxzi-kernel]
+cfg = ['curve25519_dalek_bits="32"']
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

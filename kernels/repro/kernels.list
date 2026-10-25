@@ -1,0 +1,13 @@
+# Every native kernel in this repository: crate directory -> the committed .kernel.toml it builds to.
+# Read by scripts/kernel_repro_gate.sh, which fails if a .kernel.toml in the tree is missing here.
+kernels/ic-agent-bls kernels/ic-agent-bls/kernel/ic-agent-bls.kernel.toml
+kernels/moxzi-base58/rust kernels/moxzi-base58/kernel/moxzi-base58.kernel.toml
+kernels/moxzi-bech32/rust kernels/moxzi-bech32/kernel/moxzi-bech32.kernel.toml
+kernels/moxzi-bitcoin/rust kernels/moxzi-bitcoin/kernel/moxzi-bitcoin.kernel.toml
+kernels/moxzi-bls12-381/rust kernels/moxzi-bls12-381/kernel/moxzi-bls12-381.kernel.toml
+kernels/moxzi-ed25519/rust kernels/moxzi-ed25519/kernel/moxzi-ed25519.kernel.toml
+kernels/moxzi-hash/rust kernels/moxzi-hash/kernel/moxzi-hash.kernel.toml
+kernels/moxzi-ml-dsa/rust kernels/moxzi-ml-dsa/kernel/moxzi-ml-dsa.kernel.toml
+kernels/moxzi-p256/rust kernels/moxzi-p256/kernel/moxzi-p256.kernel.toml
+kernels/moxzi-rsa/rust kernels/moxzi-rsa/kernel/moxzi-rsa.kernel.toml
+kernels/moxzi-secp256k1/rust kernels/moxzi-secp256k1/kernel/moxzi-secp256k1.kernel.toml
