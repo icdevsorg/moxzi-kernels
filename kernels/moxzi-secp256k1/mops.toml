@@ -16,6 +16,7 @@ bitcoin = "0.2.1"
 abi = 1
 file = "kernel/moxzi-secp256k1.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-secp256k1/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Secp256k1.publicKey" = { export = "public_key", args = ["Blob"], result = "Blob", result_bytes = 65 }

@@ -15,6 +15,7 @@ bitcoin = "0.2.1"
 abi = 1
 file = "kernel/moxzi-bech32.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-bech32/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Bech32.encode" = { export = "bech32_encode", args = ["Text", "Blob", "Bool"], result = "?Text" }

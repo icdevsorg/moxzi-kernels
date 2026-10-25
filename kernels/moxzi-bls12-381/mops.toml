@@ -15,6 +15,7 @@ bls12-381 = "0.2.0"
 abi = 1
 file = "kernel/moxzi-bls12-381.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-bls12-381/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Bls12381.hashToG1" = { export = "bls_hash_to_g1", args = ["Blob", "Blob"], result = "Blob", result_bytes = 48 }

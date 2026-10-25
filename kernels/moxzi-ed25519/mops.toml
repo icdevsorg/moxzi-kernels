@@ -15,6 +15,7 @@ sha2 = "0.1.14"
 abi = 1
 file = "kernel/moxzi-ed25519.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-ed25519/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Ed25519.publicKey" = { export = "public_key", args = ["Blob"], result = "Blob", result_bytes = 32 }

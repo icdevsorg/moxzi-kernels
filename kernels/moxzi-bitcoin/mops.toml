@@ -15,6 +15,7 @@ bitcoin = "0.2.1"
 abi = 1
 file = "kernel/moxzi-bitcoin.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-bitcoin/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Hash.sha256d" = { export = "hash_sha256d", args = ["Blob"], result = "Blob", result_bytes = 32 }

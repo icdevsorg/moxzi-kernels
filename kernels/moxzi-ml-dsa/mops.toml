@@ -13,6 +13,7 @@ core = "2.6.0"
 abi = 1
 file = "kernel/moxzi-ml-dsa.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-ml-dsa/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "MlDsa44.publicKey" = { export = "mldsa44_public_key", args = ["Blob"], result = "Blob", result_bytes = 1312 }

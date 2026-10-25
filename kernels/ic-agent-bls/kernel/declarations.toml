@@ -7,6 +7,7 @@
 abi = 1
 file = "kernel/ic-agent-bls.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/ic-agent-bls"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Bls12381.verify" = { export = "bls_verify", args = ["Blob", "Blob", "Blob", "Blob"], result = "Bool" }

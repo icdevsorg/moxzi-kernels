@@ -14,6 +14,7 @@ sha2 = "0.1.14"
 abi = 1
 file = "kernel/moxzi-rsa.kernel.toml"
 source = "https://github.com/icdevsorg/moxzi-kernels/tree/main/kernels/moxzi-rsa/rust"
+commit = "445b558869a5552956229d704011c40480e1854c"
 
 [kernel.functions]
 "Rsa3072.verify" = { export = "rsa_pss_verify", args = ["Blob", "Blob", "Blob", "Blob"], result = "Bool" }
