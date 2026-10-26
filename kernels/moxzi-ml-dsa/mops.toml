@@ -3,11 +3,14 @@ name = "moxzi-ml-dsa"
 version = "0.1.0"
 description = "ML-DSA-44 (FIPS 204) key generation, signing and verification, with a native moxzi kernel; the Motoko bodies (a FIPS 204 port) run under moc or without the opt-in."
 repository = "https://github.com/icdevsorg/moxzi-kernels"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 files = ["src/**/*.mo", "kernel/*.kernel.toml"]
 
 [dependencies]
 core = "2.6.0"
+
+[toolchain]
+moc = "2.0.0"
 
 [kernel]
 abi = 1

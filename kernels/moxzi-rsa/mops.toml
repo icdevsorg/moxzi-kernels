@@ -3,12 +3,15 @@ name = "moxzi-rsa"
 version = "0.1.0"
 description = "RSA-3072 RSASSA-PSS (SHA-256, PS256) for Motoko with a native moxzi kernel: verify in Motoko or natively, sign natively."
 repository = "https://github.com/icdevsorg/moxzi-kernels"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 files = ["src/**/*.mo", "kernel/*.kernel.toml"]
 
 [dependencies]
 core = "2.6.0"
 sha2 = "0.1.14"
+
+[toolchain]
+moc = "2.0.0"
 
 [kernel]
 abi = 1

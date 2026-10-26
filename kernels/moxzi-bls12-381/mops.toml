@@ -1,15 +1,18 @@
 [package]
 name = "moxzi-bls12-381"
 version = "0.1.0"
-description = "BLS12-381 for Motoko: Ethereum BLS signatures (verify, proof of possession, aggregate), G1/G2 arithmetic and MSM, RFC 9380 hash-to-curve and pairing checks, with a native moxzi kernel; the Motoko bodies (mo:bls12-381) run under moc or without the opt-in."
+description = "BLS12-381 for Motoko: Ethereum BLS signatures, G1/G2 arithmetic and MSM, hash-to-curve and pairings, with a native moxzi kernel; the Motoko bodies run under moc or without the opt-in."
 repository = "https://github.com/icdevsorg/moxzi-kernels"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 files = ["src/**/*.mo", "kernel/*.kernel.toml"]
 
 [dependencies]
 core = "2.6.0"
 sha2 = "0.1.14"
 bls12-381 = "0.2.0"
+
+[toolchain]
+moc = "2.0.0"
 
 [kernel]
 abi = 1

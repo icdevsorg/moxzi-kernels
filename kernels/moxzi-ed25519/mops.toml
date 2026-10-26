@@ -3,13 +3,16 @@ name = "moxzi-ed25519"
 version = "0.1.0"
 description = "Ed25519 (RFC 8032) keys, signing and strict verification, with a native moxzi kernel; the Motoko bodies run under moc or without the opt-in."
 repository = "https://github.com/icdevsorg/moxzi-kernels"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 files = ["src/**/*.mo", "kernel/*.kernel.toml"]
 
 [dependencies]
 base = "0.16.0"
 core = "2.6.0"
 sha2 = "0.1.14"
+
+[toolchain]
+moc = "2.0.0"
 
 [kernel]
 abi = 1
