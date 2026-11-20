@@ -1,4 +1,5 @@
 import Blob "mo:core/Blob";
+import Array "mo:core/Array";
 import Base58 "mo:bitcoin/Base58";
 
 /// Base58 with the Bitcoin alphabet
@@ -14,7 +15,7 @@ module {
   /// digits are ignored (as mo:bitcoin does); any other character outside the alphabet, or a
   /// space between digits, gives null. "" decodes to the empty Blob.
   public func decode(text : Text) : ?Blob = switch (Base58.decodeOpt(text)) {
-    case (?bytes) ?Blob.fromArray(bytes);
+    case (?bytes) ?Array.toBlob(bytes);
     case null null;
   };
 };

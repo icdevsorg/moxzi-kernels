@@ -126,7 +126,7 @@ module {
         withWitness[k] := { ins[k] with witness = List.toArray(items) };
       };
       if (not any) return null; // superfluous witness record
-      ins := Array.fromVarArray(withWitness);
+      ins := VarArray.toArray(withWitness);
     };
     if (flags != 0) return null; // unknown optional data
     let ?lockTime = r.take(4) else return null;
@@ -135,8 +135,8 @@ module {
   };
 
   func compactSize(n : Nat) : [Nat8] {
-    if (n < 0xfd) [Nat8.fromNat(n)]
-    else if (n <= 0xffff) [0xfd, Nat8.fromNat(n % 256), Nat8.fromNat(n / 256)]
+    if (n < 0xfd) [Nat.toNat8(n)]
+    else if (n <= 0xffff) [0xfd, Nat.toNat8(n % 256), Nat.toNat8(n / 256)]
     else if (n <= 0xffff_ffff) Util.concat([[0xfe], Util.le32(n)])
     else Util.concat([[0xff], Util.le32(n % 0x1_0000_0000), Util.le32(n / 0x1_0000_0000)]);
   };
@@ -295,7 +295,7 @@ module {
     ?Hash.taggedHash(Util.concat(List.toArray(m)), "TapSighash");
   };
 
-  func blob(b : [Nat8]) : Blob = Blob.fromArray(b);
+  func blob(b : [Nat8]) : Blob = Array.toBlob(b);
 
   /// True if `tx` is a valid serialized transaction (see the module doc).
   public func isValid(tx : Blob) : Bool = parse(Blob.toArray(tx)) != null;
@@ -327,7 +327,7 @@ module {
   /// invalid, `index` is not an input, or `hashType` exceeds 32 bits.
   public func signatureHashLegacy(tx : Blob, index : Nat64, scriptCode : Blob, hashType : Nat64) : ?Blob {
     let ?t = parse(Blob.toArray(tx)) else return null;
-    if (index >= Nat64.fromNat(t.inputs.size()) or hashType > 0xffff_ffff) return null;
+    if (index >= Nat.toNat64(t.inputs.size()) or hashType > 0xffff_ffff) return null;
     ?blob(legacy(t, Nat64.toNat(index), Blob.toArray(scriptCode), Nat64.toNat(hashType)));
   };
 
@@ -335,7 +335,7 @@ module {
   /// `scriptCode` is used as given. Null as for `signatureHashLegacy`.
   public func signatureHashSegwitV0(tx : Blob, index : Nat64, scriptCode : Blob, amount : Nat64, hashType : Nat64) : ?Blob {
     let ?t = parse(Blob.toArray(tx)) else return null;
-    if (index >= Nat64.fromNat(t.inputs.size()) or hashType > 0xffff_ffff) return null;
+    if (index >= Nat.toNat64(t.inputs.size()) or hashType > 0xffff_ffff) return null;
     ?blob(segwitV0(t, Nat64.toNat(index), Blob.toArray(scriptCode), amount, Nat64.toNat(hashType)));
   };
 
@@ -349,7 +349,7 @@ module {
   /// wrong form.
   public func signatureHashTaproot(tx : Blob, index : Nat64, prevouts : Blob, hashType : Nat64, annex : Blob, leafHash : Blob, codeSeparatorPosition : Nat64) : ?Blob {
     let ?t = parse(Blob.toArray(tx)) else return null;
-    if (index >= Nat64.fromNat(t.inputs.size()) or hashType > 0xff or codeSeparatorPosition > 0xffff_ffff) return null;
+    if (index >= Nat.toNat64(t.inputs.size()) or hashType > 0xff or codeSeparatorPosition > 0xffff_ffff) return null;
     let p = Blob.toArray(prevouts);
     let r = Reader(p);
     let outs = List.empty<[Nat8]>();
@@ -362,7 +362,7 @@ module {
     let an : ?[Nat8] = if (a.size() == 0) null else if (a[0] == 0x50) ?a else return null;
     let l = Blob.toArray(leafHash);
     let leaf : ?([Nat8], Nat) = if (l.size() == 0) null else if (l.size() == 32) ?(l, Nat64.toNat(codeSeparatorPosition)) else return null;
-    switch (taproot(t, Nat64.toNat(index), List.toArray(outs), Nat8.fromNat(Nat64.toNat(hashType)), an, leaf)) {
+    switch (taproot(t, Nat64.toNat(index), List.toArray(outs), Nat.toNat8(Nat64.toNat(hashType)), an, leaf)) {
       case (?h) ?blob(h);
       case null null;
     };

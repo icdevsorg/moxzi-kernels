@@ -7,6 +7,7 @@ import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Nat8 "mo:core/Nat8";
 import VarArray "mo:core/VarArray";
+import Nat "mo:core/Nat";
 
 module {
   public let P : Nat = BLS.P;
@@ -26,7 +27,7 @@ module {
   func putNat(out : [var Nat8], at : Nat, len : Nat, n : Nat) {
     var v = n;
     var i = len;
-    while (i > 0) { i -= 1; out[at + i] := Nat8.fromNat(v % 256); v := v / 256 };
+    while (i > 0) { i -= 1; out[at + i] := Nat.toNat8(v % 256); v := v / 256 };
   };
 
   public func slice(b : [Nat8], from : Nat, len : Nat) : [Nat8] = Array.tabulate<Nat8>(len, func i = b[from + i]);
@@ -71,21 +72,21 @@ module {
 
   public func encodeG1(p : BLS.G1Point) : Blob {
     let out = VarArray.repeat<Nat8>(0, 48);
-    if (BLS.g1_is_inf(p)) { out[0] := 0xc0; return Blob.fromVarArray(out) };
+    if (BLS.g1_is_inf(p)) { out[0] := 0xc0; return VarArray.toBlob(out) };
     let (x, y) = BLS.g1_to_affine(p);
     putNat(out, 0, 48, x);
     out[0] |= (if (y > HALF_P) 0xa0 else 0x80);
-    Blob.fromVarArray(out);
+    VarArray.toBlob(out);
   };
 
   public func encodeG2(p : BLS.G2Point) : Blob {
     let out = VarArray.repeat<Nat8>(0, 96);
-    if (BLS.g2_is_inf(p)) { out[0] := 0xc0; return Blob.fromVarArray(out) };
+    if (BLS.g2_is_inf(p)) { out[0] := 0xc0; return VarArray.toBlob(out) };
     let (x, y) = BLS.g2_to_affine(p);
     putNat(out, 0, 48, BLS.fp_mod(x.1));
     putNat(out, 48, 48, BLS.fp_mod(x.0));
     out[0] |= (if (largest2(y)) 0xa0 else 0x80);
-    Blob.fromVarArray(out);
+    VarArray.toBlob(out);
   };
 
   /// A 32-byte big-endian scalar below the group order.
@@ -101,14 +102,14 @@ module {
     if (u >= P) null else ?u;
   };
 
-  func sha256(parts : [[Nat8]]) : [Nat8] = Blob.toArray(Sha256.fromBlob(#sha256, Blob.fromArray(Array.flatten(parts))));
+  func sha256(parts : [[Nat8]]) : [Nat8] = Blob.toArray(Sha256.fromBlob(#sha256, Array.toBlob(Array.flatten(parts))));
 
   /// expand_message_xmd with SHA-256 (RFC 9380 5.3.1), including 5.3.3's oversized-DST rule.
   public func expandMessageXmd(msg : [Nat8], dst0 : [Nat8], lenInBytes : Nat) : [Nat8] {
     let dst = if (dst0.size() > 255) sha256([Blob.toArray("H2C-OVERSIZE-DST-"), dst0]) else dst0;
-    let dstPrime = Array.concat(dst, [Nat8.fromNat(dst.size())]);
+    let dstPrime = Array.concat(dst, [Nat.toNat8(dst.size())]);
     let ell = (lenInBytes + 31) / 32;
-    let b0 = sha256([Array.repeat<Nat8>(0, 64), msg, [Nat8.fromNat(lenInBytes / 256), Nat8.fromNat(lenInBytes % 256), 0], dstPrime]);
+    let b0 = sha256([Array.repeat<Nat8>(0, 64), msg, [Nat.toNat8(lenInBytes / 256), Nat.toNat8(lenInBytes % 256), 0], dstPrime]);
     let out = VarArray.repeat<Nat8>(0, ell * 32);
     var prev = sha256([b0, [1], dstPrime]);
     var i = 1;
@@ -117,7 +118,7 @@ module {
       if (i == ell) return Array.tabulate<Nat8>(lenInBytes, func k = out[k]);
       i += 1;
       let p = prev;
-      prev := sha256([Array.tabulate<Nat8>(32, func j = b0[j] ^ p[j]), [Nat8.fromNat(i)], dstPrime]);
+      prev := sha256([Array.tabulate<Nat8>(32, func j = b0[j] ^ p[j]), [Nat.toNat8(i)], dstPrime]);
     };
     [];
   };

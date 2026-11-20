@@ -5,6 +5,7 @@ import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Text "mo:core/Text";
 import VarArray "mo:core/VarArray";
+import Nat "mo:core/Nat";
 import Bech32 "mo:bitcoin/Bech32";
 
 /// Bech32 (BIP173) and Bech32m (BIP350) strings over 5-bit values.
@@ -47,7 +48,7 @@ module {
       case (#err _) null;
       case (#ok(encoding, hrp, values)) {
         let h = Blob.toArray(Text.encodeUtf8(hrp));
-        ?Blob.fromArray(Array.flatten<Nat8>([[if (encoding == #BECH32M) 1 else 0, Nat8.fromNat(h.size())], h, values]));
+        ?Array.toBlob(Array.flatten<Nat8>([[if (encoding == #BECH32M) 1 else 0, Nat.toNat8(h.size())], h, values]));
       };
     };
   };
@@ -57,13 +58,13 @@ module {
   public func decode(text : Text) : ?Decoded {
     let ?p = decodePacked(text) else return null;
     let n = Nat8.toNat(p[1]);
-    let hrp = switch (Text.decodeUtf8(Blob.fromArray(Array.sliceToArray<Nat8>(Blob.toArray(p), 2, 2 + n)))) {
+    let hrp = switch (Text.decodeUtf8(Array.toBlob(Array.sliceToArray<Nat8>(Blob.toArray(p), 2, 2 + n)))) {
       case (?t) t;
       case null return null;
     };
     ?{
       hrp;
-      data = Blob.fromArray(Array.sliceToArray<Nat8>(Blob.toArray(p), 2 + n, p.size()));
+      data = Array.toBlob(Array.sliceToArray<Nat8>(Blob.toArray(p), 2 + n, p.size()));
       encoding = if (p[0] == 1) #bech32m else #bech32;
     };
   };
@@ -75,8 +76,8 @@ module {
   /// wrong. `convertBits(bytes, 8, 5, true)` gives Bech32 data; `(values, 5, 8, false)` undoes it.
   public func convertBits(data : Blob, fromBits : Nat64, toBits : Nat64, pad : Bool) : ?Blob {
     if (fromBits < 1 or fromBits > 8 or toBits < 1 or toBits > 8) return null;
-    let from = Nat32.fromNat(Nat64.toNat(fromBits));
-    let to = Nat32.fromNat(Nat64.toNat(toBits));
+    let from = Nat.toNat32(Nat64.toNat(fromBits));
+    let to = Nat.toNat32(Nat64.toNat(toBits));
     let maxv : Nat32 = (1 << to) - 1;
     let maxAcc : Nat32 = (1 << (from + to - 1)) - 1;
     var acc : Nat32 = 0;
@@ -84,24 +85,24 @@ module {
     let out = VarArray.repeat<Nat8>(0, data.size() * Nat32.toNat(from) / Nat32.toNat(to) + 1);
     var n = 0;
     for (b in data.vals()) {
-      let v = Nat32.fromNat(Nat8.toNat(b));
+      let v = Nat.toNat32(Nat8.toNat(b));
       if (v >> from != 0) return null;
       acc := ((acc << from) | v) & maxAcc;
       bits += from;
       while (bits >= to) {
         bits -= to;
-        out[n] := Nat8.fromNat(Nat32.toNat((acc >> bits) & maxv));
+        out[n] := Nat.toNat8(Nat32.toNat((acc >> bits) & maxv));
         n += 1;
       };
     };
     if (pad) {
       if (bits > 0) {
-        out[n] := Nat8.fromNat(Nat32.toNat((acc << (to - bits)) & maxv));
+        out[n] := Nat.toNat8(Nat32.toNat((acc << (to - bits)) & maxv));
         n += 1;
       };
     } else if (bits >= from or ((acc << (to - bits)) & maxv) != 0) {
       return null;
     };
-    ?Blob.fromArray(Array.tabulate<Nat8>(n, func i = out[i]));
+    ?Array.toBlob(Array.tabulate<Nat8>(n, func i = out[i]));
   };
 };

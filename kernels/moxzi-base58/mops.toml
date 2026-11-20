@@ -1,13 +1,13 @@
 [package]
 name = "moxzi-base58"
-version = "0.1.0"
+version = "0.1.1"
 description = "Base58 and Base58Check (Bitcoin alphabet), with a native moxzi kernel; the Motoko bodies (mo:bitcoin) run under moc or without the opt-in."
 repository = "https://github.com/icdevsorg/moxzi-kernels"
 license = "Apache-2.0"
 files = ["src/**/*.mo", "kernel/*.kernel.toml"]
 
 [dependencies]
-core = "2.6.0"
+core = "2.7.0"
 sha2 = "0.1.14"
 bitcoin = "0.2.1"
 

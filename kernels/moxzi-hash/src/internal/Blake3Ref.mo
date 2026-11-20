@@ -31,8 +31,8 @@ module {
     var i = 0;
     while (i < 8) { s[i] := cv[i]; i += 1 };
     s[8] := IV[0]; s[9] := IV[1]; s[10] := IV[2]; s[11] := IV[3];
-    s[12] := Nat32.fromNat(Nat64.toNat(counter & 0xFFFFFFFF)); s[13] := Nat32.fromNat(Nat64.toNat(counter >> 32));
-    s[14] := Nat32.fromNat(blockLen); s[15] := flags;
+    s[12] := Nat.toNat32(Nat64.toNat(counter & 0xFFFFFFFF)); s[13] := Nat.toNat32(Nat64.toNat(counter >> 32));
+    s[14] := Nat.toNat32(blockLen); s[15] := flags;
     var m = m0;
     var r = 0;
     while (r < 7) {
@@ -44,17 +44,17 @@ module {
     };
     i := 0;
     while (i < 8) { s[i] := s[i] ^ s[i + 8]; s[i + 8] := s[i + 8] ^ cv[i]; i += 1 };
-    Array.fromVarArray(s);
+    VarArray.toArray(s);
   };
 
   func words(b : [var Nat8]) : [Nat32] = Array.tabulate<Nat32>(16, func k =
-    Nat32.fromNat(Nat8.toNat(b[4 * k])) | (Nat32.fromNat(Nat8.toNat(b[4 * k + 1])) << 8)
-    | (Nat32.fromNat(Nat8.toNat(b[4 * k + 2])) << 16) | (Nat32.fromNat(Nat8.toNat(b[4 * k + 3])) << 24));
+    Nat.toNat32(Nat8.toNat(b[4 * k])) | (Nat.toNat32(Nat8.toNat(b[4 * k + 1])) << 8)
+    | (Nat.toNat32(Nat8.toNat(b[4 * k + 2])) << 16) | (Nat.toNat32(Nat8.toNat(b[4 * k + 3])) << 24));
 
   /// The 8 little-endian words of a 32-byte key.
   public func keyWords(key : [Nat8]) : [Nat32] = Array.tabulate<Nat32>(8, func k =
-    Nat32.fromNat(Nat8.toNat(key[4 * k])) | (Nat32.fromNat(Nat8.toNat(key[4 * k + 1])) << 8)
-    | (Nat32.fromNat(Nat8.toNat(key[4 * k + 2])) << 16) | (Nat32.fromNat(Nat8.toNat(key[4 * k + 3])) << 24));
+    Nat.toNat32(Nat8.toNat(key[4 * k])) | (Nat.toNat32(Nat8.toNat(key[4 * k + 1])) << 8)
+    | (Nat.toNat32(Nat8.toNat(key[4 * k + 2])) << 16) | (Nat.toNat32(Nat8.toNat(key[4 * k + 3])) << 24));
 
   type Output = { cv : [Nat32]; block : [Nat32]; counter : Nat64; blockLen : Nat; flags : Nat32 };
 
@@ -68,12 +68,12 @@ module {
       let w = compress(o.cv, o.block, counter, o.blockLen, o.flags | ROOT);
       var k = 0;
       while (k < 64 and pos < outLen) {
-        out[pos] := Nat8.fromNat(Nat32.toNat((w[k / 4] >> Nat32.fromNat(8 * (k % 4))) & 0xFF));
+        out[pos] := Nat.toNat8(Nat32.toNat((w[k / 4] >> Nat.toNat32(8 * (k % 4))) & 0xFF));
         pos += 1; k += 1;
       };
       counter += 1;
     };
-    Array.fromVarArray(out);
+    VarArray.toArray(out);
   };
 
   func parentOutput(left : [Nat32], right : [Nat32], key : [Nat32], flags : Nat32) : Output =

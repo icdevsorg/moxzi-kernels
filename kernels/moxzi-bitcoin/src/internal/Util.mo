@@ -4,6 +4,7 @@ import Nat8 "mo:core/Nat8";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import VarArray "mo:core/VarArray";
+import Nat "mo:core/Nat";
 import Base58 "mo:bitcoin/Base58";
 import Base58Check "mo:bitcoin/Base58Check";
 import Common "mo:bitcoin/Common";
@@ -69,13 +70,13 @@ module {
 
   /// `[OP_n][push length][program]`.
   public func witnessScript(version : Nat8, program : [Nat8]) : [Nat8] =
-    concat([[if (version == 0) 0 else 0x50 + version, Nat8.fromNat(program.size())], program]);
+    concat([[if (version == 0) 0 else 0x50 + version, Nat.toNat8(program.size())], program]);
 
   public func le32(n : Nat) : [Nat8] {
     let b = VarArray.repeat<Nat8>(0, 4);
     var v = n;
-    for (i in b.keys()) { b[i] := Nat8.fromNat(v % 256); v /= 256 };
-    Array.fromVarArray(b);
+    for (i in b.keys()) { b[i] := Nat.toNat8(v % 256); v /= 256 };
+    VarArray.toArray(b);
   };
 
   public func be32(n : Nat) : [Nat8] = Array.reverse(le32(n));

@@ -32,7 +32,7 @@ module {
   /// seed length.
   public func publicKey(seed : Blob) : Blob {
     checkSeed("publicKey", seed);
-    Blob.fromArray(Ref.publicKey(Blob.toArray(seed)));
+    Array.toBlob(Ref.publicKey(Blob.toArray(seed)));
   };
 
   /// A deterministic 2420-byte signature of `message` with context `context`. Traps on a seed
@@ -40,7 +40,7 @@ module {
   public func sign(seed : Blob, message : Blob, context : Blob) : Blob {
     checkSeed("sign", seed);
     checkContext("sign", context);
-    Blob.fromArray(Ref.sign(Blob.toArray(seed), Blob.toArray(message), Blob.toArray(context), Array.repeat<Nat8>(0, 32)));
+    Array.toBlob(Ref.sign(Blob.toArray(seed), Blob.toArray(message), Blob.toArray(context), Array.repeat<Nat8>(0, 32)));
   };
 
   /// A hedged 2420-byte signature with the caller's 32 bytes of `randomness` (FIPS 204's rnd).
@@ -49,7 +49,7 @@ module {
     checkSeed("signHedged", seed);
     checkContext("signHedged", context);
     if (randomness.size() != 32) Runtime.trap("MlDsa44.signHedged: the randomness must be 32 bytes");
-    Blob.fromArray(Ref.sign(Blob.toArray(seed), Blob.toArray(message), Blob.toArray(context), Blob.toArray(randomness)));
+    Array.toBlob(Ref.sign(Blob.toArray(seed), Blob.toArray(message), Blob.toArray(context), Blob.toArray(randomness)));
   };
 
   /// Whether `signature` is a valid signature of `message` with `context` under `publicKey`.

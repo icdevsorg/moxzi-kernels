@@ -3,6 +3,7 @@ import Blob "mo:core/Blob";
 import Nat8 "mo:core/Nat8";
 import Nat64 "mo:core/Nat64";
 import Text "mo:core/Text";
+import Nat "mo:core/Nat";
 import Segwit "mo:bitcoin/Segwit";
 
 /// Segregated-witness addresses (BIP173 for version 0, BIP350 / Bech32m for versions 1..16).
@@ -26,7 +27,7 @@ module {
     if (h.size() == 0) return null;
     for (c in h.vals()) if (c < 0x21 or c > 0x7e or (c >= 0x41 and c <= 0x5a)) return null;
     if (h.size() + 1 + 1 + (program.size() * 8 + 4) / 5 + 6 > 90) return null;
-    switch (Segwit.encode(hrp, { version = Nat8.fromNat(Nat64.toNat(version)); program = Blob.toArray(program) })) {
+    switch (Segwit.encode(hrp, { version = Nat.toNat8(Nat64.toNat(version)); program = Blob.toArray(program) })) {
       case (#ok address) ?address;
       case (#err _) null;
     };
@@ -42,7 +43,7 @@ module {
       case (#err _) null;
       case (#ok(hrp, { version; program })) {
         let h = Blob.toArray(Text.encodeUtf8(hrp));
-        ?Blob.fromArray(Array.flatten<Nat8>([[version, Nat8.fromNat(h.size())], h, program]));
+        ?Array.toBlob(Array.flatten<Nat8>([[version, Nat.toNat8(h.size())], h, program]));
       };
     };
   };
@@ -52,7 +53,7 @@ module {
     let ?p = decodePacked(address) else return null;
     let n = Nat8.toNat(p[1]);
     let a = Blob.toArray(p);
-    let ?hrp = Text.decodeUtf8(Blob.fromArray(Array.sliceToArray<Nat8>(a, 2, 2 + n))) else return null;
-    ?{ hrp; version = p[0]; program = Blob.fromArray(Array.sliceToArray<Nat8>(a, 2 + n, a.size())) };
+    let ?hrp = Text.decodeUtf8(Array.toBlob(Array.sliceToArray<Nat8>(a, 2, 2 + n))) else return null;
+    ?{ hrp; version = p[0]; program = Array.toBlob(Array.sliceToArray<Nat8>(a, 2 + n, a.size())) };
   };
 };

@@ -9,6 +9,7 @@ import Nat64 "mo:core/Nat64";
 import Array "mo:core/Array";
 import VarArray "mo:core/VarArray";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import Prim "mo:⛔";
 
 module {
@@ -73,7 +74,7 @@ module {
   class Xof(rate : Nat, input : [Nat8]) {
     let s = VarArray.repeat<Nat64>(0, 25);
     func xorByte(i : Nat, v : Nat8) {
-      s[i / 8] ^= Nat64.fromNat(Nat8.toNat(v)) << Nat64.fromNat(8 * (i % 8));
+      s[i / 8] ^= Nat.toNat64(Nat8.toNat(v)) << Nat.toNat64(8 * (i % 8));
     };
     var off = 0;
     while (input.size() - off >= rate) {
@@ -91,7 +92,7 @@ module {
 
     public func next() : Nat8 {
       if (pos == rate) { keccakF(s); pos := 0 };
-      let v = Nat8.fromNat(Nat64.toNat((s[pos / 8] >> Nat64.fromNat(8 * (pos % 8))) & 0xff));
+      let v = Nat.toNat8(Nat64.toNat((s[pos / 8] >> Nat.toNat64(8 * (pos % 8))) & 0xff));
       pos += 1;
       v;
     };
@@ -239,7 +240,7 @@ module {
 
   /// ExpandA: A[r][s] = RejNTTPoly(rho || s || r).
   func expandA(rho : [Nat8]) : [[[var Nat]]] =
-    Array.tabulate<[[var Nat]]>(K, func r = Array.tabulate<[var Nat]>(L, func s = rejNtt(Array.concat<Nat8>(rho, [Nat8.fromNat(s), Nat8.fromNat(r)]))));
+    Array.tabulate<[[var Nat]]>(K, func r = Array.tabulate<[var Nat]>(L, func s = rejNtt(Array.concat<Nat8>(rho, [Nat.toNat8(s), Nat.toNat8(r)]))));
 
   /// SampleInBall(c_tilde): tau coefficients of +-1.
   func sampleInBall(rho : [Nat8]) : [var Nat] {
@@ -264,7 +265,7 @@ module {
   func expandMask(rho : [Nat8], kappa : Nat) : [[var Nat]] =
     Array.tabulate<[var Nat]>(L, func r {
       let n = kappa + r;
-      let v = shake256(Array.concat<Nat8>(rho, [Nat8.fromNat(n % 256), Nat8.fromNat(n / 256)]), 576);
+      let v = shake256(Array.concat<Nat8>(rho, [Nat.toNat8(n % 256), Nat.toNat8(n / 256)]), 576);
       VarArray.map<Nat, Nat>(unpack(v, 0, 256, 18), func b = (Q + GAMMA1 - b) % Q);
     });
 
@@ -280,7 +281,7 @@ module {
       acc += v * scale;
       scale *= 2 ** bits;
       nbits += bits;
-      while (nbits >= 8) { out[o] := Nat8.fromNat(acc % 256); acc /= 256; scale /= 256; nbits -= 8; o += 1 };
+      while (nbits >= 8) { out[o] := Nat.toNat8(acc % 256); acc /= 256; scale /= 256; nbits -= 8; o += 1 };
     };
   };
 
@@ -322,7 +323,7 @@ module {
   func w1Encode(w1 : [[var Nat]]) : [Nat8] {
     let out = VarArray.repeat<Nat8>(0, 192 * K);
     for (r in w1.keys()) pack(out, 192 * r, w1[r], 6);
-    Array.fromVarArray(out);
+    VarArray.toArray(out);
   };
 
   // ---------------------------------------------------------------------------------------------
@@ -331,12 +332,12 @@ module {
   type Key = { rho : [Nat8]; key : [Nat8]; tr : [Nat8]; a : [[[var Nat]]]; s1 : [[var Nat]]; s2 : [[var Nat]]; t0 : [[var Nat]]; pk : [Nat8] };
 
   func keyGen(xi : [Nat8]) : Key {
-    let seeds = shake256(Array.concat<Nat8>(xi, [Nat8.fromNat(K), Nat8.fromNat(L)]), 128);
+    let seeds = shake256(Array.concat<Nat8>(xi, [Nat.toNat8(K), Nat.toNat8(L)]), 128);
     let rho = Array.sliceToArray(seeds, 0, 32);
     let rhoPrime = Array.sliceToArray(seeds, 32, 96);
     let key = Array.sliceToArray(seeds, 96, 128);
     let a = expandA(rho);
-    let s = Array.tabulate<[var Nat]>(K + L, func r = rejBounded(Array.concat<Nat8>(rhoPrime, [Nat8.fromNat(r), 0])));
+    let s = Array.tabulate<[var Nat]>(K + L, func r = rejBounded(Array.concat<Nat8>(rhoPrime, [Nat.toNat8(r), 0])));
     let s1 = Array.sliceToArray(s, 0, L);
     let s2 = Array.sliceToArray(s, L, K + L);
     let s1Hat = Array.map<[var Nat], [var Nat]>(s1, nttOf);
@@ -357,7 +358,7 @@ module {
     let pkv = VarArray.repeat<Nat8>(0, PK_LEN);
     for (i in rho.keys()) pkv[i] := rho[i];
     for (r in t1.keys()) pack(pkv, 32 + 320 * r, t1[r], 10);
-    let pk = Array.fromVarArray(pkv);
+    let pk = VarArray.toArray(pkv);
     { rho; key; tr = shake256(pk, 64); a; s1; s2; t0; pk };
   };
 
@@ -366,7 +367,7 @@ module {
   // ---------------------------------------------------------------------------------------------
   // Signing (Algorithm 7, with Algorithm 2's M' = 0 || |ctx| || ctx || M)
 
-  func mPrime(ctx : [Nat8], m : [Nat8]) : [Nat8] = Array.flatten<Nat8>([[0, Nat8.fromNat(ctx.size())], ctx, m]);
+  func mPrime(ctx : [Nat8], m : [Nat8]) : [Nat8] = Array.flatten<Nat8>([[0, Nat.toNat8(ctx.size())], ctx, m]);
 
   public func sign(xi : [Nat8], m : [Nat8], ctx : [Nat8], rnd : [Nat8]) : [Nat8] {
     let k = keyGen(xi);
@@ -409,10 +410,10 @@ module {
           for (s in z.keys()) pack(out, 32 + 576 * s, VarArray.map<Nat, Nat>(z[s], func c = (GAMMA1 + Q - c) % Q), 18);
           var index = 0;
           for (r in h.keys()) {
-            for (i in h[r].keys()) if (h[r][i]) { out[2336 + index] := Nat8.fromNat(i); index += 1 };
-            out[2336 + OMEGA + r] := Nat8.fromNat(index);
+            for (i in h[r].keys()) if (h[r][i]) { out[2336 + index] := Nat.toNat8(i); index += 1 };
+            out[2336 + OMEGA + r] := Nat.toNat8(index);
           };
-          return Array.fromVarArray(out);
+          return VarArray.toArray(out);
         };
       };
     };

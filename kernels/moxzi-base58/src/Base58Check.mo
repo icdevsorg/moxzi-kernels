@@ -1,4 +1,5 @@
 import Blob "mo:core/Blob";
+import Array "mo:core/Array";
 import Base58 "mo:bitcoin/Base58";
 import Base58Check "mo:bitcoin/Base58Check";
 
@@ -18,7 +19,7 @@ module {
     // mo:bitcoin's Base58Check.decode traps on a character outside the alphabet.
     if (not Base58.isBase58Alphabet(text)) return null;
     switch (Base58Check.decode(text)) {
-      case (?payload) ?Blob.fromArray(payload);
+      case (?payload) ?Array.toBlob(payload);
       case null null;
     };
   };

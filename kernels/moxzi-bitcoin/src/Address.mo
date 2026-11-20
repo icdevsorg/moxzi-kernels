@@ -1,6 +1,7 @@
 import Blob "mo:core/Blob";
 import Nat8 "mo:core/Nat8";
 import Runtime "mo:core/Runtime";
+import Array "mo:core/Array";
 import Common "mo:bitcoin/Common";
 import Hash "mo:bitcoin/Hash";
 import Segwit "mo:bitcoin/Segwit";
@@ -73,7 +74,7 @@ module {
   /// the curve, the root has another length, the tweak is >= n, or Q is the point at infinity.
   public func taprootOutputKey(internalKey : Blob, merkleRoot : Blob) : ?Blob {
     switch (taprootOutput(Blob.toArray(internalKey), Blob.toArray(merkleRoot))) {
-      case (?q) ?Blob.fromArray(q);
+      case (?q) ?Array.toBlob(q);
       case null null;
     };
   };
@@ -92,15 +93,15 @@ module {
     let net = Util.network(network, "Address");
     switch (Segwit.decode(address)) {
       case (#ok(hrp, { version; program })) {
-        return if (hrp == net.hrp) ?Blob.fromArray(Util.witnessScript(version, program)) else null;
+        return if (hrp == net.hrp) ?Array.toBlob(Util.witnessScript(version, program)) else null;
       };
       case (#err _) {};
     };
     let ?p = Util.unbase58check(address) else return null;
     if (p.size() != 21) return null;
     let h = Util.slice(p, 1, 21);
-    if (p[0] == net.p2pkh) ?Blob.fromArray(Util.concat([[0x76, 0xa9, 0x14], h, [0x88, 0xac]]))
-    else if (p[0] == net.p2sh) ?Blob.fromArray(Util.concat([[0xa9, 0x14], h, [0x87]]))
+    if (p[0] == net.p2pkh) ?Array.toBlob(Util.concat([[0x76, 0xa9, 0x14], h, [0x88, 0xac]]))
+    else if (p[0] == net.p2sh) ?Array.toBlob(Util.concat([[0xa9, 0x14], h, [0x87]]))
     else null;
   };
 

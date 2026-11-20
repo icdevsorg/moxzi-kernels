@@ -1,6 +1,8 @@
 import Blob "mo:core/Blob";
 import Nat8 "mo:core/Nat8";
 import Nat64 "mo:core/Nat64";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
 import ByteUtils "mo:bitcoin/ByteUtils";
 import Hash "mo:bitcoin/Hash";
 import Util "internal/Util";
@@ -13,7 +15,7 @@ import Util "internal/Util";
 /// so the byte templates here are written directly. Both paths agree on every input.
 module {
   func sized(b : Blob, n : Nat, f : [Nat8] -> [Nat8]) : ?Blob =
-    if (b.size() == n) ?Blob.fromArray(f(Blob.toArray(b))) else null;
+    if (b.size() == n) ?Array.toBlob(f(Blob.toArray(b))) else null;
 
   /// OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG; null unless 20 bytes.
   public func p2pkh(publicKeyHash : Blob) : ?Blob =
@@ -40,12 +42,12 @@ module {
     let n = d.size();
     if (n == 0) return "\00";
     if (n == 1 and d[0] == 0x81) return "\4f";
-    if (n == 1 and d[0] >= 1 and d[0] <= 16) return Blob.fromArray([0x50 + d[0]]);
-    let header : [Nat8] = if (n < 0x4c) [Nat8.fromNat(n)]
-      else if (n <= 0xff) [0x4c, Nat8.fromNat(n)]
-      else if (n <= 0xffff) [0x4d, Nat8.fromNat(n % 256), Nat8.fromNat(n / 256)]
+    if (n == 1 and d[0] >= 1 and d[0] <= 16) return Array.toBlob([0x50 + d[0]]);
+    let header : [Nat8] = if (n < 0x4c) [Nat.toNat8(n)]
+      else if (n <= 0xff) [0x4c, Nat.toNat8(n)]
+      else if (n <= 0xffff) [0x4d, Nat.toNat8(n % 256), Nat.toNat8(n / 256)]
       else Util.concat([[0x4e], Util.le32(n)]);
-    Blob.fromArray(Util.concat([header, d]));
+    Array.toBlob(Util.concat([header, d]));
   };
 
   /// BIP341 TapLeaf hash: tagged "TapLeaf" of the leaf version, the script's CompactSize length
@@ -53,7 +55,7 @@ module {
   public func tapLeafHash(script : Blob, leafVersion : Nat64) : ?Blob {
     if (leafVersion > 0xfe or leafVersion % 2 != 0) return null;
     let s = Blob.toArray(script);
-    ?Blob.fromArray(Hash.taggedHash(Util.concat([[Nat8.fromNat(Nat64.toNat(leafVersion))], ByteUtils.writeVarint(s.size()), s]), "TapLeaf"));
+    ?Array.toBlob(Hash.taggedHash(Util.concat([[Nat.toNat8(Nat64.toNat(leafVersion))], ByteUtils.writeVarint(s.size()), s]), "TapLeaf"));
   };
 
   /// BIP341 TapBranch hash of two 32-byte child hashes, ordered lexicographically first. Null
@@ -61,6 +63,6 @@ module {
   public func tapBranchHash(left : Blob, right : Blob) : ?Blob {
     if (left.size() != 32 or right.size() != 32) return null;
     let (a, b) = if (left <= right) (left, right) else (right, left);
-    ?Blob.fromArray(Hash.taggedHash(Util.concat([Blob.toArray(a), Blob.toArray(b)]), "TapBranch"));
+    ?Array.toBlob(Hash.taggedHash(Util.concat([Blob.toArray(a), Blob.toArray(b)]), "TapBranch"));
   };
 };

@@ -4,6 +4,8 @@ import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Nat8 "mo:core/Nat8";
 import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
 import Bip32 "mo:bitcoin/Bip32";
 import Common "mo:bitcoin/Common";
 import Util "internal/Util";
@@ -43,7 +45,7 @@ module {
     if (index >= 0x8000_0000 or p[4] == 255) return null;
     let key = Util.slice(p, 45, 78);
     let parent = Bip32.ExtendedPublicKey(key, Util.slice(p, 13, 45), p[4], Common.readBE32(p, 9), null);
-    let ?c = parent.deriveChild(Nat32.fromNat(Nat64.toNat(index))) else return null;
+    let ?c = parent.deriveChild(Nat.toNat32(Nat64.toNat(index))) else return null;
     ?Util.concat([Util.slice(p, 0, 4), [c.depth], Util.slice(Util.hash160(key), 0, 4), Util.be32(Nat64.toNat(index)), c.chaincode, c.key]);
   };
 
@@ -68,7 +70,7 @@ module {
       } else {
         let c = s[i];
         if (c < 0x30 or c > 0x39) return null;
-        n := n * 10 + Nat64.fromNat(Nat8.toNat(c - 0x30));
+        n := n * 10 + Nat.toNat64(Nat8.toNat(c - 0x30));
         if (n >= 0x8000_0000) return null;
         digits += 1;
       };
@@ -80,7 +82,7 @@ module {
   /// The 78-byte payload of a valid extended public key (version, depth, parent fingerprint,
   /// child number, chain code, key), or null.
   public func parse(key : Text) : ?Blob {
-    switch (payloadOf(key)) { case (?p) ?Blob.fromArray(p); case null null };
+    switch (payloadOf(key)) { case (?p) ?Array.toBlob(p); case null null };
   };
 
   /// The extended key of a valid 78-byte payload (see `parse`), or null.
@@ -115,7 +117,7 @@ module {
   /// form. Null if the key is not a valid point.
   public func fingerprint(publicKey : Blob) : ?Blob {
     let ?k = Util.sec1(Blob.toArray(publicKey)) else return null;
-    ?Blob.fromArray(Util.slice(Util.hash160(Util.compressed(k)), 0, 4));
+    ?Array.toBlob(Util.slice(Util.hash160(Util.compressed(k)), 0, 4));
   };
 
   /// A master (depth 0) extended public key from a SEC1 public key (compressed in the result)

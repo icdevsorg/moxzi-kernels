@@ -27,6 +27,7 @@ import Nat8 "mo:core/Nat8";
 import Array "mo:core/Array";
 import VarArray "mo:core/VarArray";
 import Runtime "mo:core/Runtime";
+import Nat "mo:core/Nat";
 import Sha256 "mo:sha2/Sha256";
 
 module {
@@ -45,7 +46,7 @@ module {
     let out = VarArray.repeat<Nat8>(0, len);
     var v = n;
     var i = len;
-    while (i > 0) { i -= 1; out[i] := Nat8.fromNat(v % 256); v := v / 256 };
+    while (i > 0) { i -= 1; out[i] := Nat.toNat8(v % 256); v := v / 256 };
     out;
   };
 
@@ -61,7 +62,7 @@ module {
     result;
   };
 
-  func sha256(parts : [[Nat8]]) : [Nat8] = Blob.toArray(Sha256.fromBlob(#sha256, Blob.fromArray(Array.flatten(parts))));
+  func sha256(parts : [[Nat8]]) : [Nat8] = Blob.toArray(Sha256.fromBlob(#sha256, Array.toBlob(Array.flatten(parts))));
 
   /// Verify an RSASSA-PSS signature on `message` (hashed here with SHA-256).
   public func verify(n : Blob, e : Blob, message : Blob, signature : Blob) : Bool {
@@ -87,7 +88,7 @@ module {
     let h = Array.tabulate<Nat8>(H_LEN, func i = em[dbLen + i]);
     var counter = 0;
     while (counter * H_LEN < dbLen) {
-      let c = Nat8.fromNat(counter);
+      let c = Nat.toNat8(counter);
       let mask = sha256([h, [0, 0, 0, c]]);
       var j = 0;
       while (j < H_LEN and counter * H_LEN + j < dbLen) {
